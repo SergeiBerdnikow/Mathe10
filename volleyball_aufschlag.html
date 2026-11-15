@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volleyball-Aufschlag – Parabeln im Alltag</title>
+<!--
+  Animation zur Aufgabe „Volleyball-Aufschlag“ (Parabeln im Alltag – E-Kurs 10)
+  Lena: f(x) = −0,04x² + 0,48x + 2,56 = −0,04(x − 6)² + 4   (Netz bei 9 m, 2,24 m hoch, Feld 18 m)
+  Tom:  g(x) = −0,05x² + 0,3x + 2,4 = −0,05(x − 3)² + 2,85  (Punkte A(0|2,4), B(2|2,8), C(4|2,8))
+  Eine Datei, offline, keine externen Einbindungen.
+-->
+<style>
+  :root {
+    --hg: #ffffff; --flaeche: #f4f6f9; --rand: #d5dbe3; --text: #1b2430; --text2: #5a6675;
+    --akzent: #1f5c99;
+    --lena: #1f5c99; --tom: #c62828; --eigen: #2e7d32; --hilf: #d95f02; --norm: #8a96a5;
+    --schrift: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--flaeche); color: var(--text); font-family: var(--schrift);
+         font-size: 1rem; line-height: 1.4; }
+  body.gross { font-size: 1.25rem; }
+  header { display: flex; align-items: center; gap: .8em; padding: .5em 1em;
+           background: var(--akzent); color: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 1.3em; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  header button { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+  main { display: grid; gap: .8em; padding: .8em;
+         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+         grid-template-areas: "szene szene" "steuerung graph" "regler graph" "info info"; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr);
+           grid-template-areas: "szene" "steuerung" "graph" "regler" "info"; }
+  }
+  .karte { background: var(--hg); border: 1px solid var(--rand); border-radius: 10px; padding: .7em; min-width: 0; }
+  .karte h2 { font-size: 1em; margin: 0 0 .4em; color: var(--text2); font-weight: 600; }
+  #szeneKarte { grid-area: szene; } #graphKarte { grid-area: graph; }
+  #steuerKarte { grid-area: steuerung; } #reglerKarte { grid-area: regler; } #infoKarte { grid-area: info; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  #szene { aspect-ratio: 4.2 / 1; min-height: 230px; max-height: 62vh; }
+  #graph { height: 40vh; min-height: 240px; }
+  button { font: inherit; font-size: 1em; padding: .45em .9em; min-height: 2.6em; min-width: 2.6em;
+           border-radius: 8px; border: 1px solid var(--rand); background: var(--hg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--akzent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.haupt { background: var(--akzent); color: #fff; border-color: var(--akzent); font-weight: 600; }
+  button.aktiv { outline: 3px solid var(--akzent); outline-offset: 1px; }
+  .zeile { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; }
+  .messwerte { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: .3em .8em;
+               margin-top: .6em; font-variant-numeric: tabular-nums; }
+  .messwerte div { background: var(--flaeche); border-radius: 6px; padding: .25em .5em; }
+  .messwerte b { font-weight: 600; }
+  .regler { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: .6em 1.4em; }
+  .regler label { display: block; font-weight: 600; }
+  .regler .wert { float: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; height: 2.2em; accent-color: var(--akzent); }
+  .presets { margin-top: .7em; }
+  #schritte { display: none; margin-top: .6em; padding: .6em .8em; border-left: 5px solid var(--akzent);
+              background: #eef4fb; border-radius: 6px; }
+  #schritte.an { display: block; }
+  #schrittText { font-size: 1.1em; margin: .2em 0 .5em; }
+  #schrittText .rechnung { display: block; margin: .3em 0 .3em 1em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .gleichung { font-size: 1.25em; text-align: center; margin: .4em 0; font-variant-numeric: tabular-nums; min-height: 1.6em; }
+  ol.wandel { margin: .3em 0 0; padding-left: 1.4em; }
+  ol.wandel li { padding: .1em .3em; border-radius: 5px; color: var(--text2); }
+  ol.wandel li.jetzt { background: #fdebd9; color: var(--text); font-weight: 600; }
+  ol.wandel li.fertig { color: var(--text); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .klein { color: var(--text2); font-size: .85em; }
+  kbd { border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em;
+        font-size: .85em; background: var(--flaeche); }
+  .lena { color: var(--lena); font-weight: 600; } .tom { color: var(--tom); font-weight: 600; }
+  .eigen { color: var(--eigen); font-weight: 600; } .hilf { color: var(--hilf); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titel">Volleyball-Aufschlag – eine Parabel in der Sporthalle</h1>
+  <button id="btnGross" title="Große Schrift für den Beamer (G)">Beamer-Ansicht</button>
+  <button id="btnVoll" title="Vollbild (F)">Vollbild</button>
+</header>
+
+<main>
+  <section class="karte" id="szeneKarte">
+    <h2>Sporthalle (Seitenansicht, Maße in Metern)</h2>
+    <canvas id="szene" aria-label="Animation des Aufschlags"></canvas>
+    <div class="zeile" style="margin-top:.4em">
+      <button id="btnKoord" class="aktiv">Koordinatensystem</button>
+      <button id="btnBahn">Ganze Flugbahn zeigen</button>
+    </div>
+  </section>
+
+  <section class="karte" id="steuerKarte">
+    <div class="zeile">
+      <button id="btnStart" class="haupt" title="Start/Pause (Leertaste)">▶ Aufschlag</button>
+      <button id="btnSchritt" title="Ein Stück weiter (→)">Einzelschritt</button>
+      <button id="btnReset" title="Zurücksetzen (R)">↺ Zurücksetzen</button>
+      <button id="btnLangsam" title="Zeitlupe umschalten (L)">Zeitlupe: aus</button>
+    </div>
+    <div class="messwerte" id="messwerte"></div>
+    <div class="zeile presets" style="margin-top:.6em">
+      <button id="btnSchrittmodus" class="haupt">Aufgabe Schritt für Schritt</button>
+    </div>
+    <div id="schritte">
+      <div class="zeile" style="justify-content:space-between">
+        <b id="schrittNr"></b>
+        <span class="zeile"><button id="btnZurueck">◀ zurück</button><button id="btnWeiter" class="haupt">weiter ▶</button></span>
+      </div>
+      <div id="schrittText"></div>
+    </div>
+  </section>
+
+  <section class="karte" id="graphKarte">
+    <h2>Von der Normalparabel zu Lenas Parabel (Teil d)</h2>
+    <canvas id="graph" aria-label="Verwandlung der Normalparabel"></canvas>
+    <div class="gleichung" id="gleichung"></div>
+    <div class="zeile">
+      <button id="btnWandel" class="haupt">▶ Verwandlung abspielen</button>
+      <button id="btnWandelReset">↺ Normalparabel</button>
+    </div>
+    <div class="regler" id="wandelRegler" style="margin-top:.4em"></div>
+    <ol class="wandel" id="wandelListe">
+      <li>an der <i>x</i>-Achse spiegeln (nach unten geöffnet)</li>
+      <li>mit dem Faktor 0,04 stauchen (breiter)</li>
+      <li>um 6 nach rechts verschieben</li>
+      <li>um 4 nach oben verschieben</li>
+    </ol>
+  </section>
+
+  <section class="karte" id="reglerKarte">
+    <h2>Wer schlägt auf?</h2>
+    <div class="zeile" id="presets"></div>
+    <div id="eigenBox" style="display:none;margin-top:.7em">
+      <p class="klein" style="margin:.2em 0 .5em">Eigener Aufschlag in Scheitelpunktform
+        <i>h</i>(<i>x</i>) = <i>a</i>·(<i>x</i> − <i>d</i>)² + <i>e</i>: Stelle Abschlaghöhe und höchsten Punkt ein.
+        Schaffst du es über das Netz und ins Feld?</p>
+      <div class="regler" id="regler"></div>
+      <p id="eigenGl" style="margin:.5em 0 0"></p>
+    </div>
+    <div class="zeile presets"><button id="btnPNG" title="Bild der Halle speichern">Bild speichern (PNG)</button></div>
+  </section>
+
+  <section class="karte" id="infoKarte">
+    <details>
+      <summary>Was zeigt die Animation?</summary>
+      <div id="infoText"></div>
+    </details>
+    <p class="klein">Tastatur: <kbd>Leertaste</kbd> Aufschlag/Pause · <kbd>R</kbd> Zurücksetzen ·
+      <kbd>→</kbd> Einzelschritt · <kbd>L</kbd> Zeitlupe · <kbd>G</kbd> Beamer-Ansicht · <kbd>F</kbd> Vollbild</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   BAUKASTEN – allgemein verwendbar, in neuen Simulationen unverändert lassen
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Schriftgröße auf der Leinwand – wächst in der Beamer-Ansicht mit */
+const fs = px => Math.round(px * (document.body.classList.contains("gross") ? 1.3 : 1));
+
+/** Zahl deutsch formatieren: fmt(1.234, 2, "m") -> "1,23 m" */
+function fmt(x, stellen = 2, einheit = "") {
+  if (!isFinite(x)) return "–";
+  const s = x.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  return einheit ? s + " " + einheit : s;
+}
+
+/** Canvas mit scharfer Darstellung (HiDPI). Liefert {ctx, b, h} in CSS-Pixeln, passt sich an. */
+function leinwand(canvas, beiGroesse) {
+  const obj = { canvas, ctx: canvas.getContext("2d"), b: 0, h: 0 };
+  const anpassen = (melden = true) => {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    obj.b = Math.max(1, r.width); obj.h = Math.max(1, r.height);
+    canvas.width = Math.round(obj.b * dpr); canvas.height = Math.round(obj.h * dpr);
+    obj.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (melden && beiGroesse) beiGroesse();
+  };
+  anpassen(false);                       // Größe sofort setzen, Neuzeichnen erst bei Änderungen
+  new ResizeObserver(() => anpassen()).observe(canvas);
+  return obj;
+}
+
+/** Pfeil zeichnen (für Kräfte, Geschwindigkeiten, Maße) */
+function pfeil(ctx, x1, y1, x2, y2, farbe, breite = 3, spitze = 12) {
+  const w = Math.atan2(y2 - y1, x2 - x1), l = Math.hypot(x2 - x1, y2 - y1);
+  if (l < 1) return;
+  const s = Math.min(spitze, l * 0.6);
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - s * 0.7 * Math.cos(w), y2 - s * 0.7 * Math.sin(w)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(w - 0.4), y2 - s * Math.sin(w - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(w + 0.4), y2 - s * Math.sin(w + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Text mit Hintergrund (gut lesbar über Linien) */
+function beschriftung(ctx, text, x, y, { farbe = "#1b2430", groesse = 15, ausrichtung = "center",
+                                        grundlinie = "middle", fett = false, hintergrund = true } = {}) {
+  ctx.save(); groesse = fs(groesse); ctx.font = `${fett ? "600 " : ""}${groesse}px ${css("--schrift")}`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = grundlinie;
+  const m = ctx.measureText(text), pad = 3;
+  let x0 = ausrichtung === "center" ? x - m.width / 2 : ausrichtung === "right" ? x - m.width : x;
+  if (hintergrund) { ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillRect(x0 - pad, y - groesse * 0.6 - pad, m.width + 2 * pad, groesse * 1.2 + 2 * pad); }
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y); ctx.restore();
+}
+
+/** "Schöne" Achsenteilung */
+function teilung(min, max, ziel = 6) {
+  const roh = (max - min) / ziel, p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const f = roh / p, schritt = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const t = []; for (let v = Math.ceil(min / schritt) * schritt; v <= max + 1e-9 * schritt; v += schritt) t.push(v);
+  return { t, schritt, stellen: Math.max(0, -Math.floor(Math.log10(schritt) + 1e-9)) };
+}
+
+/**
+ * Live-Diagramm (Zeitreihen). Beispiel:
+ *   const d = new Diagramm(canvas, {xName:"t", xEinheit:"s", yName:"x", yEinheit:"m", fenster:10});
+ *   d.reihe("x", "Auslenkung", "#1f5c99");  d.punkt("x", t, x);  d.zeichnen();
+ * fenster = sichtbare Zeitspanne (mitlaufend); yMin/yMax fest oder automatisch.
+ */
+class Diagramm {
+  constructor(canvas, opt) {
+    this.o = Object.assign({ xName: "t", xEinheit: "s", yName: null, yEinheit: "", fenster: 10,
+                             yMin: null, yMax: null }, opt);
+    this.reihen = new Map(); this.lw = leinwand(canvas, () => this.zeichnen());
+  }
+  /** name = Text für den Knopf, achse = Achsenbeschriftung, z. B. "s in cm" */
+  reihe(id, name, farbe, sichtbar = true, achse = name) { this.reihen.set(id, { name, farbe, sichtbar, achse, d: [] }); }
+  punkt(id, x, y) { const r = this.reihen.get(id); r.d.push([x, y]); if (r.d.length > 20000) r.d.splice(0, 5000); }
+  leeren() { for (const r of this.reihen.values()) r.d = []; }
+  achsen(opt) { Object.assign(this.o, opt); }
+  zeichnen() {
+    const { ctx, b, h } = this.lw, o = this.o, R = { l: 62, r: 14, o: 18, u: 46 };
+    ctx.clearRect(0, 0, b, h);
+    const sicht = [...this.reihen.values()].filter(r => r.sichtbar);
+    let xMax = 0; for (const r of sicht) if (r.d.length) xMax = Math.max(xMax, r.d[r.d.length - 1][0]);
+    const x1 = Math.max(o.fenster, xMax), x0 = x1 - o.fenster;
+    let y0 = o.yMin, y1 = o.yMax;
+    if (y0 === null || y1 === null) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of sicht) for (const [x, y] of r.d) if (x >= x0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (!isFinite(lo)) { lo = -1; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      const rand = 0.1 * (hi - lo);
+      if (y0 === null) y0 = lo - rand; if (y1 === null) y1 = hi + rand;
+    }
+    const X = x => R.l + (x - x0) / (x1 - x0) * (b - R.l - R.r);
+    const Y = y => h - R.u - (y - y0) / (y1 - y0) * (h - R.o - R.u);
+    ctx.font = `${fs(13)}px ${css("--schrift")}`; ctx.lineWidth = 1;
+    const tx = teilung(x0, x1, Math.max(3, Math.floor(b / 90))), ty = teilung(y0, y1, Math.max(3, Math.floor(h / 55)));
+    ctx.strokeStyle = "#e3e7ec"; ctx.fillStyle = "#5a6675";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const v of tx.t) { ctx.beginPath(); ctx.moveTo(X(v), R.o); ctx.lineTo(X(v), h - R.u); ctx.stroke();
+                            ctx.fillText(fmt(v, tx.stellen), X(v), h - R.u + 5); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const v of ty.t) { ctx.beginPath(); ctx.moveTo(R.l, Y(v)); ctx.lineTo(b - R.r, Y(v)); ctx.stroke();
+                            ctx.fillText(fmt(v, ty.stellen), R.l - 6, Y(v)); }
+    // Achsen (Nulllinie hervorheben)
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const yNull = (y0 < 0 && y1 > 0) ? Y(0) : h - R.u;
+    ctx.moveTo(R.l, yNull); ctx.lineTo(b - R.r, yNull); ctx.moveTo(R.l, R.o); ctx.lineTo(R.l, h - R.u); ctx.stroke();
+    ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${o.xName} in ${o.xEinheit}`, b - R.r, h - 4);
+    ctx.save(); ctx.translate(14, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+    const yText = o.yName ? (o.yEinheit ? `${o.yName} in ${o.yEinheit}` : o.yName) : sicht.map(r => r.achse).join(",  ");
+    ctx.fillText(yText, 0, 0); ctx.restore();
+    // Kurven
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    for (const r of sicht) {
+      ctx.strokeStyle = r.farbe; ctx.lineWidth = 2.5; ctx.beginPath(); let an = false;
+      for (const [x, y] of r.d) { if (x < x0 - 1e-9) continue; an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+      ctx.stroke();
+      if (r.d.length) { const [x, y] = r.d[r.d.length - 1]; ctx.fillStyle = r.farbe;
+                        ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  /** Knöpfe zum Ein-/Ausblenden der Kurven in ein Element einfügen */
+  auswahl(el) {
+    el.innerHTML = "";
+    for (const [id, r] of this.reihen) {
+      const k = document.createElement("button");
+      k.innerHTML = `<span style="color:${r.farbe}">━━</span> ${r.name}`;
+      k.classList.toggle("aktiv", r.sichtbar);
+      k.onclick = () => { r.sichtbar = !r.sichtbar; k.classList.toggle("aktiv", r.sichtbar); this.zeichnen(); };
+      el.appendChild(k);
+    }
+  }
+}
+
+/**
+ * Energiebalken. Beispiel:
+ *   const eb = new Balken(canvas, [{id:"pot", name:"E_Spann", farbe:css("--e-pot")}, ...], "J");
+ *   eb.zeichnen({pot: 0.2, kin: 0.1, ges: 0.3}, maxWert);
+ */
+class Balken {
+  constructor(canvas, arten, einheit = "J") { this.arten = arten; this.einheit = einheit;
+    this.lw = leinwand(canvas, () => this.letzte && this.zeichnen(...this.letzte)); }
+  zeichnen(werte, max) {
+    this.letzte = [werte, max];
+    const { ctx, b, h } = this.lw, n = this.arten.length, R = { l: 10, r: 10, o: 26, u: 30 };
+    ctx.clearRect(0, 0, b, h);
+    const bw = (b - R.l - R.r) / n, H = h - R.o - R.u, sk = max > 0 ? H / max : 0;
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(R.l, h - R.u); ctx.lineTo(b - R.r, h - R.u); ctx.stroke();
+    this.arten.forEach((a, i) => {
+      const v = Math.max(0, werte[a.id] || 0), x = R.l + i * bw + bw * 0.18, w = bw * 0.64;
+      ctx.fillStyle = a.farbe; ctx.fillRect(x, h - R.u - v * sk, w, v * sk);
+      ctx.font = `600 ${fs(14)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430"; ctx.textAlign = "center";
+      ctx.textBaseline = "top"; ctx.fillText(a.name, x + w / 2, h - R.u + 6);
+      ctx.textBaseline = "bottom"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+      ctx.fillText(fmt(werte[a.id] || 0, a.stellen ?? 2, this.einheit), x + w / 2, Math.max(R.o + 2, h - R.u - v * sk - 4));
+    });
+  }
+}
+
+/** Regler erzeugen. Liefert Objekt mit .wert; ruft beiAenderung(wert) auf. */
+function regler(container, { id, name, min, max, schritt, wert, einheit = "", stellen = 2, beiAenderung }) {
+  const box = document.createElement("div");
+  box.innerHTML = `<label for="r_${id}">${name} <span class="wert" id="w_${id}"></span></label>
+                   <input type="range" id="r_${id}" min="${min}" max="${max}" step="${schritt}" value="${wert}">`;
+  container.appendChild(box);
+  const inp = box.querySelector("input"), anz = box.querySelector(".wert");
+  const r = { get wert() { return parseFloat(inp.value); },
+              setzen(v) { inp.value = v; anz.textContent = fmt(parseFloat(inp.value), stellen, einheit); },
+              sperren(an) { inp.disabled = an; } };
+  r.setzen(wert);
+  inp.addEventListener("input", () => { anz.textContent = fmt(r.wert, stellen, einheit); beiAenderung && beiAenderung(r.wert); });
+  return r;
+}
+
+/** Datei aus der Seite heraus speichern (funktioniert offline) */
+function speichern(name, inhalt, typ) {
+  const a = document.createElement("a");
+  a.href = typeof inhalt === "string" ? URL.createObjectURL(new Blob([inhalt], { type: typ })) : inhalt;
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/** Mehrere Canvas nebeneinander als ein PNG speichern */
+function alsPNG(name, canvasListe) {
+  const b = canvasListe.reduce((s, c) => s + c.width, 0), h = Math.max(...canvasListe.map(c => c.height));
+  const z = document.createElement("canvas"); z.width = b; z.height = h;
+  const ctx = z.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  let x = 0; for (const c of canvasListe) { ctx.drawImage(c, x, 0); x += c.width; }
+  speichern(name, z.toDataURL("image/png"));
+}
+
+/**
+ * Simulationsschleife mit festem Zeitschritt (physikalisch sauber, unabhängig von der Bildrate).
+ *   const lauf = new Schleife({dt: 0.001, schritt: dt => {...}, bild: () => {...}});
+ *   lauf.start(); lauf.pause(); lauf.tempo = 0.2 (Zeitlupe)
+ */
+class Schleife {
+  constructor({ dt, schritt, bild, beiStatus }) {
+    Object.assign(this, { dt, schritt, bild, beiStatus, laeuft: false, tempo: 1, rest: 0, tAlt: 0 });
+    const tick = tJetzt => {
+      if (this.laeuft) {
+        let echt = Math.min(0.1, (tJetzt - this.tAlt) / 1000);   // nach Tab-Wechsel nicht springen
+        this.rest += echt * this.tempo;
+        let n = 0; while (this.rest >= this.dt && n < 20000) { this.schritt(this.dt); this.rest -= this.dt; n++; }
+      }
+      this.tAlt = tJetzt; this.bild(); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  start() { this.laeuft = true; this.beiStatus && this.beiStatus(true); }
+  pause() { this.laeuft = false; this.beiStatus && this.beiStatus(false); }
+  umschalten() { this.laeuft ? this.pause() : this.start(); }
+  einzelschritt(dauer) { this.pause(); const n = Math.round(dauer / this.dt); for (let i = 0; i < n; i++) this.schritt(this.dt); }
+}
+
+/**
+ * Schritt-für-Schritt-Modus zum Besprechen im Plenum.
+ *   schrittmodus([{text:"…", vorbereiten: () => {...}}, ...])
+ */
+function schrittmodus(schritte) {
+  let i = 0; const box = $("schritte");
+  const zeigen = () => { $("schrittNr").textContent = `Schritt ${i + 1} von ${schritte.length}`;
+    $("schrittText").innerHTML = schritte[i].text; schritte[i].vorbereiten && schritte[i].vorbereiten();
+    $("btnZurueck").disabled = i === 0; $("btnWeiter").disabled = i === schritte.length - 1; };
+  $("btnZurueck").onclick = () => { if (i > 0) { i--; zeigen(); } };
+  $("btnWeiter").onclick = () => { if (i < schritte.length - 1) { i++; zeigen(); } };
+  return { an() { box.classList.add("an"); i = 0; zeigen(); }, aus() { box.classList.remove("an"); },
+           get aktiv() { return box.classList.contains("an"); } };
+}
+
+/** Vollbild, Beamer-Ansicht, Tastatur */
+function bedienungEinrichten(lauf, { reset, einzel }) {
+  $("btnVoll").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $("btnGross").onclick = () => { document.body.classList.toggle("gross"); $("btnGross").classList.toggle("aktiv"); };
+  $("btnStart").onclick = () => lauf.umschalten();
+  $("btnReset").onclick = reset;
+  $("btnSchritt").onclick = einzel;
+  $("btnLangsam").onclick = () => { lauf.tempo = lauf.tempo === 1 ? 0.2 : 1;
+    $("btnLangsam").textContent = `Zeitlupe: ${lauf.tempo === 1 ? "aus" : "an (×0,2)"}`;
+    $("btnLangsam").classList.toggle("aktiv", lauf.tempo !== 1); };
+  lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Start"; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    const k = e.key.toLowerCase();
+    if (k === " ") { e.preventDefault(); lauf.umschalten(); }
+    else if (k === "r") reset(); else if (k === "arrowright") einzel();
+    else if (k === "l") $("btnLangsam").click(); else if (k === "g") $("btnGross").click();
+    else if (k === "f") $("btnVoll").click();
+  });
+}
+
+
+/* =====================================================================
+   MODELL – Volleyball-Aufschlag
+   Flugbahnen in Scheitelpunktform  y = a·(x − d)² + e   (x, y in m)
+     Lena  f(x) = −0,04(x − 6)² + 4    = −0,04x² + 0,48x + 2,56
+     Tom   g(x) = −0,05(x − 3)² + 2,85 = −0,05x² + 0,3x + 2,4
+   Der Ball bewegt sich waagerecht gleichmäßig (Animation, keine Wurfphysik);
+   die Höhe ist immer genau der Funktionswert. Trifft er das Netz, fällt er senkrecht herunter.
+   ===================================================================== */
+const NETZ_X = 9, NETZ_H = 2.24, NETZ_UNTEN = 1.24, FELD = 18, R_BALL = 0.11, VX = 7;
+const BAHNEN = {
+  lena:  { id: "lena",  name: "Lena", fn: "f", farbe: css("--lena"),  a: -0.04, d: 6, e: 4 },
+  tom:   { id: "tom",   name: "Tom",  fn: "g", farbe: css("--tom"),   a: -0.05, d: 3, e: 2.85 },
+  eigen: { id: "eigen", name: "Du",   fn: "h", farbe: css("--eigen"), a: -0.05, d: 6, e: 4 },
+};
+const hoehe = (B, x) => B.a * (x - B.d) ** 2 + B.e;
+const nullLinks = B => B.d - Math.sqrt(-B.e / B.a);
+const nullRechts = B => B.d + Math.sqrt(-B.e / B.a);
+function ergebnis(B) {
+  const L = nullRechts(B);
+  if (L < NETZ_X) return "kurz";
+  if (hoehe(B, NETZ_X) < NETZ_H) return "netz";
+  return L <= FELD ? "feld" : "aus";
+}
+const ERG_TEXT = { kurz: "landet vor dem Netz", netz: "im Netz!", feld: "im Feld!", aus: "Aus! (hinter dem Feld)" };
+
+let modus = "lena";                          // lena | tom | beide | eigen
+let baelle = [];                             // {B, x, y, vy, status, spur}
+let tZeit = 0;
+const zeige = { abschlag: false, netz: false, scheitel: false, nullstellen: false, tom: false, bahn: false, koord: true };
+
+const aktiveBahnen = () => modus === "beide" ? [BAHNEN.lena, BAHNEN.tom] : [BAHNEN[modus]];
+const fertig = () => baelle.every(k => k.status === "boden" || k.status === "liegt" || k.status === "raus");
+
+function neuStart() {
+  lauf.pause(); tZeit = 0;
+  baelle = aktiveBahnen().map(B => ({ B, x: 0, y: hoehe(B, 0), vy: 0, status: "bereit", spur: [[0, hoehe(B, 0)]] }));
+}
+
+function ballSchritt(k, dt) {
+  if (k.status === "bereit") k.status = "fliegt";
+  if (k.status === "fliegt") {
+    const xNeu = k.x + VX * dt;
+    if (k.x < NETZ_X - R_BALL && xNeu >= NETZ_X - R_BALL && nullRechts(k.B) > NETZ_X && hoehe(k.B, NETZ_X) < NETZ_H) {
+      k.x = NETZ_X - R_BALL; k.y = hoehe(k.B, k.x); k.status = "netz"; k.vy = 0;       // Ball im Netz
+    } else if (xNeu > XMAX - 0.4 && hoehe(k.B, xNeu) > 0) {
+      k.x = XMAX - 0.4; k.y = hoehe(k.B, k.x); k.status = "raus";                       // fliegt aus dem Bild
+    } else if (hoehe(k.B, xNeu) <= 0) {
+      k.x = nullRechts(k.B); k.y = 0; k.status = "boden";                               // gelandet
+    } else { k.x = xNeu; k.y = hoehe(k.B, xNeu); }
+    const l = k.spur[k.spur.length - 1];
+    if (Math.abs(k.x - l[0]) > 0.04 || k.status !== "fliegt") k.spur.push([k.x, k.y]);
+  } else if (k.status === "netz") {
+    k.vy -= 9.81 * dt; k.y += k.vy * dt;
+    if (k.y <= R_BALL) { k.y = R_BALL; k.status = "liegt"; }
+  }
+}
+
+function physikSchritt(dt) {
+  tZeit += dt;
+  for (const k of baelle) ballSchritt(k, dt);
+  if (fertig() && lauf.laeuft) lauf.pause();
+}
+
+/** Bälle ohne Animation bis zur Stelle X vorspulen (für die Schritte) */
+function ballBis(X) {
+  neuStart();
+  for (const k of baelle) {
+    let n = 0;
+    while (k.status !== "boden" && k.status !== "liegt" && k.status !== "raus" && (k.status === "netz" || k.x < X - 1e-9) && n++ < 200000) {
+      const dt = Math.min(0.001, k.status === "fliegt" ? Math.max(1e-6, (X - k.x) / VX) : 0.001);
+      ballSchritt(k, dt);
+    }
+  }
+}
+
+/* ---------- Szene: Sporthalle ---------- */
+const szene = leinwand($("szene"), () => szeneZeichnen());
+const XMIN = -5.6, XMAX = 19.9, YMAX = 5.3;
+
+function koordinaten() {
+  const { b, h } = szene, unten = fs(34), oben = 10;
+  const sk = Math.min((b - 16) / (XMAX - XMIN), (h - unten - oben) / YMAX);
+  const ox = (b - (XMAX - XMIN) * sk) / 2 - XMIN * sk, boden = h - unten;
+  return { sk, X: x => ox + x * sk, Y: y => boden - y * sk, boden };
+}
+
+function person(ctx, K, B, farbe) {
+  const h0 = hoehe(B, 0), fuss = Math.max(0, Math.min(0.8, h0 - 2.1));
+  const P = (x, y) => [K.X(x), K.Y(y)];
+  const huefte = [-0.5, fuss + 0.92], schulter = [-0.45, fuss + 1.45], kopf = [-0.47, fuss + 1.64];
+  const hand = [-R_BALL * 0.9, h0 - R_BALL * 0.4];
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  // Beine (leicht angewinkelt im Sprung)
+  ctx.strokeStyle = "#2b2b2b"; ctx.lineWidth = Math.max(3, K.sk * 0.13);
+  ctx.beginPath(); ctx.moveTo(...P(...huefte)); ctx.lineTo(...P(-0.38, fuss + 0.48)); ctx.lineTo(...P(-0.5, fuss + 0.02));
+  ctx.moveTo(...P(...huefte)); ctx.lineTo(...P(-0.66, fuss + 0.5)); ctx.lineTo(...P(-0.6, fuss + 0.04)); ctx.stroke();
+  // Schuhe
+  ctx.strokeStyle = "#555"; ctx.lineWidth = Math.max(3, K.sk * 0.1);
+  ctx.beginPath(); ctx.moveTo(...P(-0.55, fuss + 0.02)); ctx.lineTo(...P(-0.38, fuss + 0.02));
+  ctx.moveTo(...P(-0.65, fuss + 0.04)); ctx.lineTo(...P(-0.48, fuss + 0.03)); ctx.stroke();
+  // Rumpf (Trikot)
+  ctx.strokeStyle = farbe; ctx.lineWidth = Math.max(6, K.sk * 0.3);
+  ctx.beginPath(); ctx.moveTo(...P(...huefte)); ctx.lineTo(...P(...schulter)); ctx.stroke();
+  // Arme: Schlagarm zum Ball, anderer Arm nach unten
+  ctx.strokeStyle = "#e0b48a"; ctx.lineWidth = Math.max(2.5, K.sk * 0.09);
+  ctx.beginPath(); ctx.moveTo(...P(...schulter)); ctx.lineTo(...P((schulter[0] + hand[0]) / 2 - 0.05, (schulter[1] + hand[1]) / 2 + 0.05));
+  ctx.lineTo(...P(...hand));
+  ctx.moveTo(...P(...schulter)); ctx.lineTo(...P(-0.7, fuss + 1.1)); ctx.lineTo(...P(-0.75, fuss + 0.85)); ctx.stroke();
+  // Kopf
+  ctx.fillStyle = "#e0b48a"; ctx.beginPath(); ctx.arc(...P(...kopf), Math.max(4, K.sk * 0.12), 0, 7); ctx.fill();
+  ctx.fillStyle = "#4a3426"; ctx.beginPath(); ctx.arc(K.X(kopf[0] - 0.02), K.Y(kopf[1] + 0.03), Math.max(4, K.sk * 0.12), Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
+  ctx.restore();
+  beschriftung(ctx, B.name, K.X(-0.5), K.Y(fuss) + fs(12), { groesse: 13, fett: true, farbe });
+}
+
+function ball(ctx, K, x, y, farbe) {
+  const r = Math.max(6, R_BALL * K.sk * 1.6), cx = K.X(x), cy = K.Y(Math.max(y, R_BALL * 0.9));
+  ctx.save(); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#333"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = farbe; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(cx - r * 0.9, cy - r * 0.2, r * 0.9, -0.9, 0.9); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + r * 0.5, cy + r * 1.0, r * 0.9, -2.4, -0.9); ctx.stroke();
+  ctx.restore();
+}
+
+function punkt(ctx, K, x, y, farbe, text, { dx = 0, dy = -18, ausrichtung = "center", r = 5 } = {}) {
+  ctx.save(); ctx.fillStyle = farbe; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.X(x), K.Y(y), r, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+  if (text) beschriftung(ctx, text, K.X(x) + dx, K.Y(y) + dy, { groesse: 14, fett: true, farbe, ausrichtung });
+}
+function kreuz(ctx, K, x, y, farbe, text, dy = -18, dx = 0) {
+  const px = K.X(x), py = K.Y(y), s = 7;
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px - s, py - s); ctx.lineTo(px + s, py + s); ctx.moveTo(px - s, py + s); ctx.lineTo(px + s, py - s); ctx.stroke();
+  ctx.restore(); beschriftung(ctx, text, px + dx, py + dy, { groesse: 14, fett: true, farbe, ausrichtung: dx ? "left" : "center" });
+}
+function gestrichelt(ctx, x1, y1, x2, y2, farbe, breite = 1.5) {
+  ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = farbe; ctx.lineWidth = breite;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function kurve(ctx, K, B, x0, x1, farbe, breite, strich) {
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = breite; if (strich) ctx.setLineDash(strich);
+  ctx.beginPath(); let an = false;
+  for (let i = 0; i <= 300; i++) { const x = x0 + (x1 - x0) * i / 300, y = hoehe(B, x);
+    if (y < -0.02 || y > YMAX) { an = false; continue; }
+    an ? ctx.lineTo(K.X(x), K.Y(y)) : ctx.moveTo(K.X(x), K.Y(y)); an = true; }
+  ctx.stroke(); ctx.restore();
+}
+
+function szeneZeichnen() {
+  const { ctx, b, h } = szene, K = koordinaten();
+  ctx.clearRect(0, 0, b, h);
+  // Hallenwand und Boden
+  const g = ctx.createLinearGradient(0, 0, 0, K.boden); g.addColorStop(0, "#e9eef4"); g.addColorStop(1, "#f7f8fa");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, b, K.boden);
+  ctx.fillStyle = "#d9b98a"; ctx.fillRect(0, K.boden, b, h - K.boden);
+  ctx.strokeStyle = "rgba(120,80,30,.18)"; ctx.lineWidth = 1;
+  for (let x = Math.ceil(XMIN); x < XMAX; x += 1.3) { ctx.beginPath(); ctx.moveTo(K.X(x), K.boden + 2); ctx.lineTo(K.X(x - 0.6), h); ctx.stroke(); }
+  // Spielfeld (Linien am Boden)
+  ctx.fillStyle = "#f2f2f2"; ctx.fillRect(K.X(0), K.boden - 1, (FELD) * K.sk, 3);
+  ctx.fillStyle = "#c9dcef"; ctx.fillRect(K.X(0), K.boden + 2, FELD * K.sk, 4);
+  // Koordinatensystem
+  if (zeige.koord) {
+    ctx.save(); ctx.strokeStyle = "rgba(31,92,153,.13)"; ctx.lineWidth = 1;
+    for (let x = Math.ceil(XMIN); x <= XMAX; x++) { ctx.beginPath(); ctx.moveTo(K.X(x), K.Y(0)); ctx.lineTo(K.X(x), K.Y(YMAX - 0.1)); ctx.stroke(); }
+    for (let y = 1; y <= YMAX - 0.1; y++) { ctx.beginPath(); ctx.moveTo(K.X(XMIN), K.Y(y)); ctx.lineTo(K.X(XMAX), K.Y(y)); ctx.stroke(); }
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(K.X(0), K.Y(0)); ctx.lineTo(K.X(0), K.Y(YMAX - 0.05)); ctx.stroke();
+    pfeil(ctx, K.X(0), K.Y(YMAX - 0.6), K.X(0), K.Y(YMAX - 0.02), "#1b2430", 1.5, 9);
+    ctx.fillStyle = "#1b2430"; ctx.font = `${fs(12)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let y = 1; y <= YMAX - 0.3; y++) ctx.fillText(String(y), K.X(0) - 5, K.Y(y));
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let x = -4; x <= XMAX - 0.5; x += 2) ctx.fillText(String(x).replace("-", "−"), K.X(x), K.boden + 8);
+    ctx.font = `600 ${fs(13)}px ${css("--schrift")}`; ctx.textAlign = "left";
+    ctx.fillText("x in m", K.X(XMAX) - fs(48), K.boden + 8);
+    ctx.textBaseline = "top"; ctx.fillText("Höhe in m", K.X(0) + 6, K.Y(YMAX) + 2);
+    ctx.restore();
+  }
+  // Feldende
+  beschriftung(ctx, "Feldende 18 m", K.X(FELD), K.Y(0.35), { groesse: 12, farbe: "#5a6675" });
+  ctx.fillStyle = "#5a6675"; ctx.fillRect(K.X(FELD) - 1.5, K.boden - 6, 3, 9);
+  // Netz mit Pfosten
+  const nx = K.X(NETZ_X);
+  ctx.fillStyle = "#6b7684"; ctx.fillRect(nx - 3, K.Y(2.45), 6, K.boden - K.Y(2.45));
+  ctx.save(); ctx.strokeStyle = "rgba(30,30,30,.55)"; ctx.lineWidth = 1;
+  const nb = Math.max(6, 0.16 * K.sk);
+  ctx.beginPath();
+  for (let y = NETZ_UNTEN; y <= NETZ_H + 1e-6; y += 0.1) { ctx.moveTo(nx - nb / 2, K.Y(y)); ctx.lineTo(nx + nb / 2, K.Y(y)); }
+  ctx.moveTo(nx - nb / 2, K.Y(NETZ_UNTEN)); ctx.lineTo(nx - nb / 2, K.Y(NETZ_H));
+  ctx.moveTo(nx + nb / 2, K.Y(NETZ_UNTEN)); ctx.lineTo(nx + nb / 2, K.Y(NETZ_H)); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#333"; ctx.fillRect(nx - nb / 2 - 1, K.Y(NETZ_H) - 3, nb + 2, 5);
+  ctx.strokeRect(nx - nb / 2 - 1, K.Y(NETZ_H) - 3, nb + 2, 5); ctx.restore();
+  beschriftung(ctx, "Netz 2,24 m", nx + nb / 2 + 6, K.Y(NETZ_UNTEN + 0.35), { groesse: 12, farbe: "#5a6675", ausrichtung: "left" });
+
+  // Hilfsdarstellungen der Schritte
+  const L = BAHNEN.lena;
+  if (zeige.nullstellen) {
+    kurve(ctx, K, L, nullLinks(L), 0, css("--hilf"), 2, [6, 5]);
+    punkt(ctx, K, -4, 0, css("--hilf"), "x₂ = −4 (entfällt)", { dy: -18 });
+    punkt(ctx, K, 16, 0, css("--lena"), "x₁ = 16", { dx: -16, dy: -12, ausrichtung: "right" });
+    pfeil(ctx, K.X(16), K.boden + fs(26), K.X(18), K.boden + fs(26), css("--hilf"), 2, 8);
+    pfeil(ctx, K.X(18), K.boden + fs(26), K.X(16), K.boden + fs(26), css("--hilf"), 2, 8);
+    beschriftung(ctx, "2 m bis Feldende", K.X(17), K.boden + fs(26) - 1, { groesse: 12, farbe: css("--hilf") });
+  }
+  if (zeige.bahn) for (const B of aktiveBahnen())
+    kurve(ctx, K, B, Math.max(XMIN, nullLinks(B)), Math.min(XMAX, nullRechts(B)), B.farbe + "88", 2, [7, 6]);
+  if (zeige.scheitel) {
+    gestrichelt(ctx, K.X(6), K.Y(0), K.X(6), K.Y(YMAX - 0.2), css("--hilf"), 2);
+    beschriftung(ctx, "Symmetrieachse x = 6", K.X(6) + 6, K.Y(YMAX - 0.45), { groesse: 13, farbe: css("--hilf"), ausrichtung: "left" });
+    gestrichelt(ctx, K.X(0), K.Y(4), K.X(6), K.Y(4), css("--lena"), 1.5);
+    punkt(ctx, K, 6, 4, css("--lena"), "S(6 | 4)", { dy: -20, r: 6 });
+  }
+  if (zeige.abschlag) {
+    punkt(ctx, K, 0, 2.56, css("--lena"), "(0 | 2,56)", { dx: 12, dy: -20, ausrichtung: "left" });
+    pfeil(ctx, K.X(0) + 14, K.Y(0), K.X(0) + 14, K.Y(2.56) + 6, css("--hilf"), 2, 9);
+    beschriftung(ctx, "c = 2,56 m", K.X(0) + 20, K.Y(1.3), { groesse: 14, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  }
+  if (zeige.netz) {
+    const y9 = hoehe(L, 9);
+    gestrichelt(ctx, K.X(0), K.Y(y9), K.X(9), K.Y(y9), css("--lena"), 1.5);
+    pfeil(ctx, nx + 16, K.Y(NETZ_H), nx + 16, K.Y(y9) + 4, css("--hilf"), 2, 8);
+    pfeil(ctx, nx + 16, K.Y(y9), nx + 16, K.Y(NETZ_H) - 4, css("--hilf"), 2, 8);
+    beschriftung(ctx, "1,40 m Platz", nx + 24, K.Y((y9 + NETZ_H) / 2), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+    punkt(ctx, K, 9, y9, css("--lena"), "f(9) = 3,64", { dy: -20 });
+  }
+  if (zeige.tom) {
+    const T = BAHNEN.tom;
+    kreuz(ctx, K, 0, 2.4, css("--tom"), "A(0 | 2,4)", 16, 10);
+    kreuz(ctx, K, 2, 2.8, css("--tom"), "B(2 | 2,8)", -20);
+    kreuz(ctx, K, 4, 2.8, css("--tom"), "C(4 | 2,8)", -20);
+    if (baelle.some(k => k.B === T && k.status !== "bereit" && k.status !== "fliegt"))
+    { punkt(ctx, K, 9, hoehe(T, 9), css("--tom"), "");
+      beschriftung(ctx, "g(9) = 1,05 < 2,24", nx, K.Y(2.85), { groesse: 14, fett: true, farbe: css("--tom") }); }
+  }
+
+  // Personen, Spuren, Bälle
+  if (baelle.length) person(ctx, K, baelle[0].B, baelle[0].B.farbe);
+  for (const k of baelle) {
+    ctx.save(); ctx.strokeStyle = k.B.farbe; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.beginPath();
+    k.spur.forEach(([x, y], i) => i ? ctx.lineTo(K.X(x), K.Y(y)) : ctx.moveTo(K.X(x), K.Y(y)));
+    if (k.status === "fliegt") ctx.lineTo(K.X(k.x), K.Y(k.y));
+    ctx.stroke(); ctx.restore();
+  }
+  for (const k of baelle) {
+    ball(ctx, K, k.x, k.y, k.B.farbe);
+    if (modus === "beide" && k.status !== "bereit") beschriftung(ctx, k.B.name, K.X(k.x), K.Y(k.y) - fs(22), { groesse: 13, fett: true, farbe: k.B.farbe });
+    if (k.status === "boden" || k.status === "liegt" || k.status === "raus") {
+      const erg = ergebnis(k.B), txt = erg === "netz" ? `${k.B.name}: im Netz!` : `${k.B.name}: ${fmt(nullRechts(k.B), 2, "m")} – ${ERG_TEXT[erg]}`;
+      const yT = K.Y(0) - fs(modus === "beide" && k.B.id === "tom" ? 64 : (zeige.nullstellen || k.status === "raus") ? 70 : 42);
+      beschriftung(ctx, txt, Math.min(K.X(k.x), b - 170), yT, { groesse: 15, fett: true, farbe: k.B.farbe });
+    }
+  }
+}
+
+/* ---------- Messwerte ---------- */
+function messwerteZeigen() {
+  let s = "";
+  for (const k of baelle) {
+    const B = k.B, vorbei = k.x >= NETZ_X - R_BALL || k.status === "netz" || k.status === "liegt";
+    const unten = k.status === "boden" || k.status === "liegt" || k.status === "raus";
+    const kopf = modus === "beide" ? `<span style="color:${B.farbe};font-weight:600">${B.name}:</span> ` : "";
+    s += `<div>${kopf}<b>x</b> = ${fmt(k.x, 2, "m")}</div>
+          <div>${kopf}<b>Höhe</b> = ${fmt(Math.max(0, k.y), 2, "m")}</div>
+          <div>${kopf}Abschlag: ${fmt(hoehe(B, 0), 2, "m")}</div>
+          <div>${kopf}am Netz: ${vorbei ? (k.status === "netz" || k.status === "liegt" ? "<b>zu tief</b> (" + fmt(hoehe(B, 9), 2, "m") + ")" : fmt(hoehe(B, 9), 2, "m")) : "…"}</div>
+          <div>${kopf}Landung: ${unten ? (k.status === "liegt" ? "im Netz" : fmt(nullRechts(B), 2, "m")) : "…"}</div>`;
+  }
+  $("messwerte").innerHTML = s;
+}
+
+/* ---------- Verwandlung: Normalparabel → Lenas Parabel ---------- */
+const graph = leinwand($("graph"), () => graphZeichnen());
+let wandel = 0, wandelLaeuft = false, wandelHalt = 0;
+const GX0 = -6, GX1 = 17, GY0 = -6, GY1 = 6;
+
+function wandelParameter(s) {
+  let k = 1, d = 0, e = 0;
+  if (s <= 1) k = 1 - 2 * s;
+  else k = -Math.exp(Math.log(0.04) * Math.min(1, s - 1));
+  if (s > 2) d = 6 * Math.min(1, s - 2);
+  if (s > 3) e = 4 * Math.min(1, s - 3);
+  return { k, d, e };
+}
+function zahl(v, n = 2) { return fmt(Math.abs(v) < 1e-9 ? 0 : v, n).replace(/,?0+$/, "").replace(/,$/, ""); }
+function gleichungText(s) {
+  const { k, d, e } = wandelParameter(s);
+  const kT = Math.abs(k - 1) < 1e-6 ? "" : Math.abs(k + 1) < 1e-6 ? "−" : (k < 0 ? "−" : "") + zahl(Math.abs(k), Math.abs(k) < 0.1 ? 3 : 2) + "·";
+  const rot = t => `<span class="hilf">${t}</span>`;
+  const innen = d > 1e-6 ? `(<i>x</i> − ${rot(zahl(d, 1))})²` : `<i>x</i>²`;
+  const eT = e > 1e-6 ? ` + ${rot(zahl(e, 1))}` : "";
+  let txt = `<i>y</i> = ${kT ? rot(kT) : ""}${innen}${eT}`;
+  if (s >= 3.999) txt += ` &nbsp;=&nbsp; <span class="lena"><i>f</i>(<i>x</i>)</span> ✓`;
+  return txt;
+}
+function graphZeichnen() {
+  const { ctx, b, h } = graph, R = { l: 34, r: 12, o: 12, u: 26 };
+  ctx.clearRect(0, 0, b, h);
+  const X = x => R.l + (x - GX0) / (GX1 - GX0) * (b - R.l - R.r), Y = y => h - R.u - (y - GY0) / (GY1 - GY0) * (h - R.o - R.u);
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1; ctx.font = `${fs(12)}px ${css("--schrift")}`; ctx.fillStyle = "#5a6675";
+  for (let x = GX0; x <= GX1; x++) { ctx.beginPath(); ctx.moveTo(X(x), Y(GY0)); ctx.lineTo(X(x), Y(GY1)); ctx.stroke(); }
+  for (let y = GY0; y <= GY1; y++) { ctx.beginPath(); ctx.moveTo(X(GX0), Y(y)); ctx.lineTo(X(GX1), Y(y)); ctx.stroke(); }
+  ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(X(GX0), Y(0)); ctx.lineTo(X(GX1), Y(0)); ctx.moveTo(X(0), Y(GY0)); ctx.lineTo(X(0), Y(GY1)); ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let x = -4; x <= GX1; x += 2) if (x) ctx.fillText(String(x).replace("-", "−"), X(x), Y(0) + 3);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let y = GY0; y <= GY1; y += 2) if (y) ctx.fillText(String(y).replace("-", "−"), X(0) - 4, Y(y));
+  ctx.font = `600 ${fs(13)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430";
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("x", X(GX1) - 2, Y(0) - 3);
+  ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText("y", X(0) + 5, Y(GY1) + 1);
+  const zeichne = (fn, farbe, breite, strich) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    ctx.strokeStyle = farbe; ctx.lineWidth = breite; if (strich) ctx.setLineDash(strich);
+    ctx.beginPath(); let an = false;
+    for (let i = 0; i <= 600; i++) { const x = GX0 + (GX1 - GX0) * i / 600, y = fn(x);
+      if (y < GY0 - 1 || y > GY1 + 1) { an = false; continue; }
+      an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+    ctx.stroke(); ctx.restore();
+  };
+  zeichne(x => x * x, css("--norm"), 2, [5, 4]);
+  zeichne(x => hoehe(BAHNEN.lena, x), css("--lena") + "66", 3, [8, 6]);
+  const { k, d, e } = wandelParameter(wandel);
+  zeichne(x => k * (x - d) ** 2 + e, css("--hilf"), 3.5);
+  ctx.fillStyle = css("--hilf"); ctx.beginPath(); ctx.arc(X(d), Y(e), 5, 0, 7); ctx.fill();
+  beschriftung(ctx, `S(${zahl(d, 1)} | ${zahl(e, 1)})`, X(d) + 8, Y(e) + (k > 0 ? 14 : -14), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  if (wandel < 0.05) beschriftung(ctx, "Normalparabel y = x²", X(2.2), Y(4.8), { groesse: 12, farbe: "#5a6675", ausrichtung: "left" });
+  beschriftung(ctx, "Lenas Parabel f", X(12.5), Y(3.6), { groesse: 12, farbe: css("--lena"), ausrichtung: "left" });
+}
+function wandelAnzeigen() {
+  $("gleichung").innerHTML = gleichungText(wandel);
+  [...$("wandelListe").children].forEach((li, i) => {
+    li.classList.toggle("fertig", wandel >= i + 1 - 1e-6);
+    li.classList.toggle("jetzt", wandel > i + 1e-6 && wandel < i + 1 - 1e-6);
+  });
+  RW.setzen(wandel);
+}
+function wandelTick(dt) {
+  if (!wandelLaeuft) return;
+  if (wandelHalt > 0) { wandelHalt -= dt; return; }
+  const alt = wandel; wandel = Math.min(4, wandel + 0.45 * dt);
+  if (Math.floor(alt + 1e-9) !== Math.floor(wandel + 1e-9) || wandel >= 4) { wandel = Math.round(wandel * 1e6) / 1e6; wandelHalt = 0.9; }
+  if (wandel >= 4) { wandel = 4; wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; }
+}
+function wandelStart() {
+  if (wandel >= 4) wandel = 0;
+  wandelLaeuft = true; wandelHalt = wandel === 0 ? 0.6 : 0; $("btnWandel").textContent = "❚❚ Pause";
+}
+const RW = regler($("wandelRegler"), { id: "wandel", name: "Schritt der Verwandlung", min: 0, max: 4, schritt: 0.01, wert: 0,
+  einheit: "von 4", stellen: 1, beiAenderung: v => { wandel = v; wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; } });
+$("btnWandel").onclick = () => { if (wandelLaeuft) { wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; } else wandelStart(); };
+$("btnWandelReset").onclick = () => { wandel = 0; wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; };
+
+/* ---------- Regler (eigener Aufschlag) und Auswahl ---------- */
+const R = {};
+const E = BAHNEN.eigen; E.c = 2.5; E.d = 6; E.e = 3.8;
+function eigenAktualisieren() {
+  if (E.e < E.c + 0.1) { E.e = Math.round((E.c + 0.1) * 100) / 100; R.e.setzen(E.e); }
+  E.a = (E.c - E.e) / (E.d * E.d);
+  $("eigenGl").innerHTML = `<span class="eigen"><i>h</i>(<i>x</i>) = ${fmt(E.a, 3).replace("-", "−")}·(<i>x</i> − ${fmt(E.d, 1)})² + ${fmt(E.e, 2)}</span>
+     &nbsp; <span class="klein">(<i>a</i> wird so berechnet, dass die Parabel durch den Abschlagpunkt (0 | ${fmt(E.c, 2)}) geht)</span>`;
+  if (modus === "eigen") neuStart();
+}
+R.c = regler($("regler"), { id: "c", name: "Abschlaghöhe c", min: 2, max: 3.2, schritt: 0.05, wert: E.c, einheit: "m",
+  beiAenderung: v => { E.c = v; eigenAktualisieren(); } });
+R.d = regler($("regler"), { id: "d", name: "Höchster Punkt bei x = d", min: 2, max: 10, schritt: 0.5, wert: E.d, einheit: "m", stellen: 1,
+  beiAenderung: v => { E.d = v; eigenAktualisieren(); } });
+R.e = regler($("regler"), { id: "e", name: "Größte Höhe e", min: 2.2, max: 5.2, schritt: 0.05, wert: E.e, einheit: "m",
+  beiAenderung: v => { E.e = v; eigenAktualisieren(); } });
+
+const auswahl = [
+  { id: "lena", text: "Lena: f(x) = −0,04x² + 0,48x + 2,56" },
+  { id: "tom", text: "Tom: g(x) = −0,05x² + 0,3x + 2,4" },
+  { id: "beide", text: "Beide vergleichen" },
+  { id: "eigen", text: "Eigener Aufschlag" },
+];
+const knoepfe = {};
+function modusSetzen(m) {
+  modus = m; for (const id in knoepfe) knoepfe[id].classList.toggle("aktiv", id === m);
+  $("eigenBox").style.display = m === "eigen" ? "block" : "none"; neuStart();
+}
+for (const a of auswahl) {
+  const k = document.createElement("button"); k.textContent = a.text; knoepfe[a.id] = k;
+  k.onclick = () => { schritte.aus(); hilfenAus(); modusSetzen(a.id); };
+  $("presets").appendChild(k);
+}
+function hilfenAus() { Object.assign(zeige, { abschlag: false, netz: false, scheitel: false, nullstellen: false, tom: false }); }
+$("btnKoord").onclick = () => { zeige.koord = !zeige.koord; $("btnKoord").classList.toggle("aktiv", zeige.koord); };
+$("btnBahn").onclick = () => { zeige.bahn = !zeige.bahn; $("btnBahn").classList.toggle("aktiv", zeige.bahn); };
+
+/* ---------- Schritt für Schritt: die Aufgabe a) bis f) ---------- */
+const r = t => `<span class="rechnung">${t}</span>`;
+const schritte = schrittmodus([
+  { text: `<b>Die Situation.</b> Lena schlägt genau über der Grundlinie auf. Die Flugbahn ist eine nach unten geöffnete Parabel:
+     ${r("<i>f</i>(<i>x</i>) = −0,04<i>x</i>² + 0,48<i>x</i> + 2,56")}
+     <i>x</i> ist die Entfernung von Lenas Grundlinie, <i>f</i>(<i>x</i>) die Höhe des Balls (beides in m).
+     Drücke <b>▶ Aufschlag</b> und beobachte den Ball.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); } },
+  { text: `<b>a) Abschlaghöhe.</b> Beim Abschlag ist der Ball genau über der Grundlinie, also bei <i>x</i> = 0:
+     ${r("<i>f</i>(0) = −0,04·0² + 0,48·0 + 2,56 = <b>2,56</b>")}
+     Alle Teile mit <i>x</i> fallen weg, übrig bleibt <span class="hilf"><i>c</i> = 2,56</span>. Lena schlägt den Ball in <b>2,56 m</b> Höhe.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); zeige.abschlag = true; } },
+  { text: `<b>b) Am Netz.</b> Das Netz steht bei <i>x</i> = 9. Am Graphen liest man etwa 3,6 m ab (genau: <i>f</i>(9) = 3,64).
+     ${r("Platz über der Netzkante: 3,64 m − 2,24 m = <b>1,40 m</b>")}`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); ballBis(9); zeige.netz = true; } },
+  { text: `<b>c) Der höchste Punkt.</b> Wir multiplizieren die Scheitelpunktform aus (2. binomische Formel):
+     ${r("−0,04·(<i>x</i> − 6)² + 4 = −0,04·(<i>x</i>² − 12<i>x</i> + 36) + 4<br>= −0,04<i>x</i>² + 0,48<i>x</i> − 1,44 + 4 = −0,04<i>x</i>² + 0,48<i>x</i> + 2,56 ✓")}
+     Scheitelpunkt <b>S(6 | 4)</b>: 6 m hinter der Grundlinie ist der Ball am höchsten, nämlich <b>4 m</b>.
+     Die Parabel ist symmetrisch zur Geraden <span class="hilf"><i>x</i> = 6</span>.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); ballBis(6); zeige.scheitel = true; } },
+  { text: `<b>d) Aus der Normalparabel.</b> In der Karte „Von der Normalparabel zu Lenas Parabel“ siehst du, wie aus
+     <i>y</i> = <i>x</i>² Schritt für Schritt Lenas Parabel wird. Alle Zahlen stecken in der Scheitelpunktform
+     ${r("<i>f</i>(<i>x</i>) = <span class='hilf'>−0,04</span>·(<i>x</i> − <span class='hilf'>6</span>)² + <span class='hilf'>4</span>")}
+     Minus: spiegeln · 0,04: stauchen (breiter) · −6 in der Klammer: 6 nach <b>rechts</b> · +4: 4 nach oben.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); ballBis(6); zeige.scheitel = true; wandel = 0; wandelStart(); } },
+  { text: `<b>e) Wo landet der Ball?</b> Am Boden ist die Höhe 0:
+     ${r("−0,04<i>x</i>² + 0,48<i>x</i> + 2,56 = 0 &nbsp; | : (−0,04)<br><i>x</i>² − 12<i>x</i> − 64 = 0 &nbsp; (<i>p</i> = −12, <i>q</i> = −64)<br><i>x</i> = 6 ± √(36 + 64) = 6 ± 10")}
+     <i>x</i>₁ = <b>16</b> und <i>x</i>₂ = −4 (entfällt, das wäre hinter Lena). Beide liegen 10 m von der Symmetrieachse entfernt.
+     16 m &lt; 18 m: Der Aufschlag landet <b>im Feld</b>.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("lena"); ballBis(99); zeige.nullstellen = true; zeige.scheitel = true; } },
+  { text: `<b>f) Toms Aufschlag (1).</b> Gemessen wurden <span class="tom">A(0 | 2,4), B(2 | 2,8), C(4 | 2,8)</span>. Einsetzen in <i>g</i>(<i>x</i>) = <i>ax</i>² + <i>bx</i> + <i>c</i>:
+     ${r("A: <i>c</i> = 2,4<br>B: 4<i>a</i> + 2<i>b</i> + 2,4 = 2,8 &nbsp;→&nbsp; 4<i>a</i> + 2<i>b</i> = 0,4 &nbsp;(II)<br>C: 16<i>a</i> + 4<i>b</i> + 2,4 = 2,8 &nbsp;→&nbsp; 16<i>a</i> + 4<i>b</i> = 0,4 &nbsp;(III)<br>(III) − 2·(II): 8<i>a</i> = −0,4 &nbsp;→&nbsp; <i>a</i> = −0,05; &nbsp; in (II): <i>b</i> = 0,3")}
+     <b class="tom"><i>g</i>(<i>x</i>) = −0,05<i>x</i>² + 0,3<i>x</i> + 2,4</b>`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("tom"); zeige.tom = true; } },
+  { text: `<b>f) Toms Aufschlag (2).</b> Am Netz:
+     ${r("<i>g</i>(9) = −0,05·81 + 0,3·9 + 2,4 = −4,05 + 2,7 + 2,4 = <b>1,05</b>")}
+     1,05 m &lt; 2,24 m: Toms Ball fliegt <b>ins Netz</b>. Drücke ▶ Aufschlag, um es noch einmal zu sehen.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("tom"); zeige.tom = true; ballBis(99); } },
+  { text: `<b>Vergleich.</b> Lena schlägt höher und flacher (<i>a</i> = −0,04), Toms Parabel ist steiler (<i>a</i> = −0,05) und ihr Scheitel liegt nur bei 2,85 m.
+     Probiere danach bei <span class="eigen">„Eigener Aufschlag“</span> selbst aus, welche Parabeln über das Netz und ins Feld gehen.`,
+    vorbereiten: () => { hilfenAus(); modusSetzen("beide"); lauf.start(); } },
+]);
+$("btnSchrittmodus").onclick = () => { if (schritte.aktiv) { schritte.aus(); hilfenAus(); } else schritte.an(); };
+
+/* ---------- Erklärung ---------- */
+$("infoText").innerHTML = `
+  <p>Die Animation gehört zur Aufgabe <b>„Volleyball-Aufschlag“</b>. Lenas Ball fliegt auf der Parabel
+  <span class="lena"><i>f</i>(<i>x</i>) = −0,04<i>x</i>² + 0,48<i>x</i> + 2,56 = −0,04(<i>x</i> − 6)² + 4</span>,
+  Toms Ball auf <span class="tom"><i>g</i>(<i>x</i>) = −0,05<i>x</i>² + 0,3<i>x</i> + 2,4</span>.
+  Das Netz steht bei 9 m und ist 2,24 m hoch, das Feld ist 18 m lang.</p>
+  <p>Mit <b>„Aufgabe Schritt für Schritt“</b> gehst du die Teilaufgaben a) bis f) durch: Die Halle zeigt jeweils die passende
+  Stelle, darunter steht die Rechnung. Rechts wird für Teil d) die Normalparabel in Lenas Parabel verwandelt.</p>
+  <p class="klein">Vereinfachung: Der Ball bewegt sich waagerecht gleichmäßig, seine Höhe ist immer der Funktionswert.
+  Luftwiderstand und Drall werden nicht berücksichtigt. Echte Aufschläge sind deutlich schneller.</p>`;
+
+/* ---------- Start ---------- */
+const lauf = new Schleife({ dt: 0.002, schritt: dt => { physikSchritt(dt); },
+  bild: () => { szeneZeichnen(); graphZeichnen(); messwerteZeigen(); wandelAnzeigen(); } });
+let tAltW = performance.now();
+(function wTick(t) { wandelTick(Math.min(0.1, (t - tAltW) / 1000)); tAltW = t; requestAnimationFrame(wTick); })(performance.now());
+bedienungEinrichten(lauf, { reset: () => { schritte.aus(); hilfenAus(); neuStart(); },
+                            einzel: () => { if (fertig()) neuStart(); lauf.einzelschritt(0.1); } });
+const umschaltenAlt = lauf.umschalten.bind(lauf);
+lauf.umschalten = () => { if (!lauf.laeuft && fertig()) { const z = { ...zeige }; neuStart(); Object.assign(zeige, z); } umschaltenAlt(); };
+$("btnStart").onclick = () => lauf.umschalten();
+lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Aufschlag"; };
+$("btnPNG").onclick = () => alsPNG("volleyball_aufschlag.png", [$("szene")]);
+eigenAktualisieren();
+modusSetzen("lena");
+</script>
+</body>
+</html>

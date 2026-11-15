@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folientunnel – Parabeln im Alltag</title>
+<!--
+  Simulation zur Aufgabe „Folientunnel im Schulgarten“ (Parabeln im Alltag – E-Kurs 10)
+  f(x) = −0,2x² + 3,2 (Ursprung Mitte) · h(x) = −0,2(x − 4)² + 3,2 = −0,2x² + 1,6x (Ursprung linker Fußpunkt)
+  Nachbarschule k(x) = −0,25x² + 1,75x · kleiner Tunnel t(x) = −0,3x² + 2,7
+  Eine Datei, offline, keine externen Einbindungen.
+-->
+<style>
+  :root {
+    --hg: #ffffff; --flaeche: #f4f6f9; --rand: #d5dbe3; --text: #1b2430; --text2: #5a6675;
+    --akzent: #1f5c99;
+    --tunnel: #1f5c99; --nachbar: #7b3294; --klein: #c62828; --eigen: #2e7d32; --hilf: #d95f02; --norm: #8a96a5; --gut: #2e7d32; --schlecht: #c62828;
+    --schrift: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--flaeche); color: var(--text); font-family: var(--schrift);
+         font-size: 1rem; line-height: 1.4; }
+  body.gross { font-size: 1.25rem; }
+  header { display: flex; align-items: center; gap: .8em; padding: .5em 1em;
+           background: var(--akzent); color: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 1.3em; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  header button { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+  main { display: grid; gap: .8em; padding: .8em;
+         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+         grid-template-areas: "szene steuerung" "regler graph" "info info"; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr);
+           grid-template-areas: "szene" "steuerung" "graph" "regler" "info"; }
+  }
+  .karte { background: var(--hg); border: 1px solid var(--rand); border-radius: 10px; padding: .7em; min-width: 0; }
+  .karte h2 { font-size: 1em; margin: 0 0 .4em; color: var(--text2); font-weight: 600; }
+  #szeneKarte { grid-area: szene; } #graphKarte { grid-area: graph; }
+  #steuerKarte { grid-area: steuerung; } #reglerKarte { grid-area: regler; } #infoKarte { grid-area: info; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  #szene { aspect-ratio: 2.5 / 1; min-height: 260px; max-height: 64vh; }
+  #graph { height: 40vh; min-height: 240px; }
+  button { font: inherit; font-size: 1em; padding: .45em .9em; min-height: 2.6em; min-width: 2.6em;
+           border-radius: 8px; border: 1px solid var(--rand); background: var(--hg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--akzent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.haupt { background: var(--akzent); color: #fff; border-color: var(--akzent); font-weight: 600; }
+  button.aktiv { outline: 3px solid var(--akzent); outline-offset: 1px; }
+  .zeile { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; }
+  .messwerte { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: .3em .8em;
+               margin-top: .6em; font-variant-numeric: tabular-nums; }
+  .messwerte div { background: var(--flaeche); border-radius: 6px; padding: .25em .5em; }
+  .messwerte b { font-weight: 600; }
+  .regler { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: .6em 1.4em; }
+  .regler label { display: block; font-weight: 600; }
+  .regler .wert { float: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; height: 2.2em; accent-color: var(--akzent); }
+  .presets { margin-top: .7em; }
+  #schritte { display: none; margin-top: .6em; padding: .6em .8em; border-left: 5px solid var(--akzent);
+              background: #eef4fb; border-radius: 6px; }
+  #schritte.an { display: block; }
+  #schrittText { font-size: 1.1em; margin: .2em 0 .5em; }
+  #schrittText .rechnung { display: block; margin: .3em 0 .3em 1em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .gleichung { font-size: 1.25em; text-align: center; margin: .4em 0; font-variant-numeric: tabular-nums; min-height: 1.6em; }
+  ol.wandel { margin: .3em 0 0; padding-left: 1.4em; }
+  ol.wandel li { padding: .1em .3em; border-radius: 5px; color: var(--text2); }
+  ol.wandel li.jetzt { background: #fdebd9; color: var(--text); font-weight: 600; }
+  ol.wandel li.fertig { color: var(--text); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .klein { color: var(--text2); font-size: .85em; }
+  kbd { border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em;
+        font-size: .85em; background: var(--flaeche); }
+  .tunnel { color: var(--tunnel); font-weight: 600; } .nachbar { color: var(--nachbar); font-weight: 600; } .klein2 { color: var(--klein); font-weight: 600; }
+  .eigen { color: var(--eigen); font-weight: 600; } .hilf { color: var(--hilf); font-weight: 600; }
+</style>
+<style>
+  .gleichungsZeile { font-size: 1.15em; margin: .4em 0 .2em; font-variant-numeric: tabular-nums; }
+  #graph { height: 34vh; min-height: 230px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titel">Folientunnel im Schulgarten – eine Parabel zum Anfassen</h1>
+  <button id="btnGross" title="Große Schrift für den Beamer (G)">Beamer-Ansicht</button>
+  <button id="btnVoll" title="Vollbild (F)">Vollbild</button>
+</header>
+
+<main>
+  <section class="karte" id="szeneKarte">
+    <h2>Querschnitt des Tunnels (Maße in Metern)</h2>
+    <canvas id="szene" aria-label="Querschnitt des Folientunnels"></canvas>
+    <div class="gleichungsZeile" id="gleichung2"></div>
+    <div class="zeile" style="margin-top:.3em">
+      <button id="btnMitte" class="aktiv">Ursprung: Mitte</button>
+      <button id="btnLinks">Ursprung: linker Fußpunkt</button>
+      <button id="btnKoord" class="aktiv">Koordinatensystem</button>
+      <button id="btnStaebe">Tomatenstäbe (2 m)</button>
+    </div>
+    <p class="klein">Tipp: Frau Yılmaz lässt sich mit Maus oder Finger hin- und herziehen.</p>
+  </section>
+
+  <section class="karte" id="steuerKarte">
+    <div class="zeile">
+      <button id="btnStart" class="haupt" title="Start/Pause (Leertaste)">▶ Frau Yılmaz geht los</button>
+      <button id="btnSchritt" title="Ein Stück weiter (→)">Einzelschritt</button>
+      <button id="btnReset" title="Zurücksetzen (R)">↺ Zurücksetzen</button>
+      <button id="btnLangsam" title="Zeitlupe umschalten (L)">Zeitlupe: aus</button>
+    </div>
+    <div class="messwerte" id="messwerte"></div>
+    <div class="zeile presets" style="margin-top:.6em">
+      <button id="btnSchrittmodus" class="haupt">Aufgabe Schritt für Schritt</button>
+    </div>
+    <div id="schritte">
+      <div class="zeile" style="justify-content:space-between">
+        <b id="schrittNr"></b>
+        <span class="zeile"><button id="btnZurueck">◀ zurück</button><button id="btnWeiter" class="haupt">weiter ▶</button></span>
+      </div>
+      <div id="schrittText"></div>
+    </div>
+  </section>
+
+  <section class="karte" id="graphKarte">
+    <h2>Von der Normalparabel zum Tunnel (Teil b)</h2>
+    <canvas id="graph" aria-label="Verwandlung der Normalparabel"></canvas>
+    <div class="gleichung" id="gleichung"></div>
+    <div class="zeile">
+      <button id="btnWandel" class="haupt">▶ Verwandlung abspielen</button>
+      <button id="btnWandelReset">↺ Normalparabel</button>
+    </div>
+    <div class="regler" id="wandelRegler" style="margin-top:.4em"></div>
+    <ol class="wandel" id="wandelListe">
+      <li>an der <i>x</i>-Achse spiegeln (nach unten geöffnet)</li>
+      <li>mit dem Faktor 0,2 stauchen (breiter)</li>
+      <li>um 3,2 nach oben verschieben</li>
+    </ol>
+    <p class="klein" style="margin:.4em 0 0">Keine Verschiebung nach links oder rechts: Der Scheitel bleibt auf der <i>y</i>-Achse,
+      deshalb ist der Graph symmetrisch zur <i>y</i>-Achse.</p>
+  </section>
+
+  <section class="karte" id="reglerKarte">
+    <h2>Welcher Tunnel?</h2>
+    <div class="zeile" id="presets"></div>
+    <div id="eigenBox" style="display:none;margin-top:.7em">
+      <p class="klein" style="margin:.2em 0 .5em">Eigener Tunnel: Stelle Breite und Höhe ein. Passt Frau Yılmaz noch aufrecht hinein?</p>
+      <div class="regler" id="regler"></div>
+    </div>
+    <div class="zeile presets"><button id="btnPNG" title="Bild des Tunnels speichern">Bild speichern (PNG)</button></div>
+  </section>
+
+  <section class="karte" id="infoKarte">
+    <details>
+      <summary>Was zeigt die Simulation?</summary>
+      <div id="infoText"></div>
+    </details>
+    <p class="klein">Tastatur: <kbd>Leertaste</kbd> Gehen/Pause · <kbd>R</kbd> Zurücksetzen ·
+      <kbd>→</kbd> Einzelschritt · <kbd>L</kbd> Zeitlupe · <kbd>G</kbd> Beamer-Ansicht · <kbd>F</kbd> Vollbild</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   BAUKASTEN – allgemein verwendbar, in neuen Simulationen unverändert lassen
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Schriftgröße auf der Leinwand – wächst in der Beamer-Ansicht mit */
+const fs = px => Math.round(px * (document.body.classList.contains("gross") ? 1.3 : 1));
+
+/** Zahl deutsch formatieren: fmt(1.234, 2, "m") -> "1,23 m" */
+function fmt(x, stellen = 2, einheit = "") {
+  if (!isFinite(x)) return "–";
+  const s = x.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  return einheit ? s + " " + einheit : s;
+}
+
+/** Canvas mit scharfer Darstellung (HiDPI). Liefert {ctx, b, h} in CSS-Pixeln, passt sich an. */
+function leinwand(canvas, beiGroesse) {
+  const obj = { canvas, ctx: canvas.getContext("2d"), b: 0, h: 0 };
+  const anpassen = (melden = true) => {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    obj.b = Math.max(1, r.width); obj.h = Math.max(1, r.height);
+    canvas.width = Math.round(obj.b * dpr); canvas.height = Math.round(obj.h * dpr);
+    obj.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (melden && beiGroesse) beiGroesse();
+  };
+  anpassen(false);                       // Größe sofort setzen, Neuzeichnen erst bei Änderungen
+  new ResizeObserver(() => anpassen()).observe(canvas);
+  return obj;
+}
+
+/** Pfeil zeichnen (für Kräfte, Geschwindigkeiten, Maße) */
+function pfeil(ctx, x1, y1, x2, y2, farbe, breite = 3, spitze = 12) {
+  const w = Math.atan2(y2 - y1, x2 - x1), l = Math.hypot(x2 - x1, y2 - y1);
+  if (l < 1) return;
+  const s = Math.min(spitze, l * 0.6);
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - s * 0.7 * Math.cos(w), y2 - s * 0.7 * Math.sin(w)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(w - 0.4), y2 - s * Math.sin(w - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(w + 0.4), y2 - s * Math.sin(w + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Text mit Hintergrund (gut lesbar über Linien) */
+function beschriftung(ctx, text, x, y, { farbe = "#1b2430", groesse = 15, ausrichtung = "center",
+                                        grundlinie = "middle", fett = false, hintergrund = true } = {}) {
+  ctx.save(); groesse = fs(groesse); ctx.font = `${fett ? "600 " : ""}${groesse}px ${css("--schrift")}`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = grundlinie;
+  const m = ctx.measureText(text), pad = 3;
+  let x0 = ausrichtung === "center" ? x - m.width / 2 : ausrichtung === "right" ? x - m.width : x;
+  if (hintergrund) { ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillRect(x0 - pad, y - groesse * 0.6 - pad, m.width + 2 * pad, groesse * 1.2 + 2 * pad); }
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y); ctx.restore();
+}
+
+/** "Schöne" Achsenteilung */
+function teilung(min, max, ziel = 6) {
+  const roh = (max - min) / ziel, p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const f = roh / p, schritt = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const t = []; for (let v = Math.ceil(min / schritt) * schritt; v <= max + 1e-9 * schritt; v += schritt) t.push(v);
+  return { t, schritt, stellen: Math.max(0, -Math.floor(Math.log10(schritt) + 1e-9)) };
+}
+
+/**
+ * Live-Diagramm (Zeitreihen). Beispiel:
+ *   const d = new Diagramm(canvas, {xName:"t", xEinheit:"s", yName:"x", yEinheit:"m", fenster:10});
+ *   d.reihe("x", "Auslenkung", "#1f5c99");  d.punkt("x", t, x);  d.zeichnen();
+ * fenster = sichtbare Zeitspanne (mitlaufend); yMin/yMax fest oder automatisch.
+ */
+class Diagramm {
+  constructor(canvas, opt) {
+    this.o = Object.assign({ xName: "t", xEinheit: "s", yName: null, yEinheit: "", fenster: 10,
+                             yMin: null, yMax: null }, opt);
+    this.reihen = new Map(); this.lw = leinwand(canvas, () => this.zeichnen());
+  }
+  /** name = Text für den Knopf, achse = Achsenbeschriftung, z. B. "s in cm" */
+  reihe(id, name, farbe, sichtbar = true, achse = name) { this.reihen.set(id, { name, farbe, sichtbar, achse, d: [] }); }
+  punkt(id, x, y) { const r = this.reihen.get(id); r.d.push([x, y]); if (r.d.length > 20000) r.d.splice(0, 5000); }
+  leeren() { for (const r of this.reihen.values()) r.d = []; }
+  achsen(opt) { Object.assign(this.o, opt); }
+  zeichnen() {
+    const { ctx, b, h } = this.lw, o = this.o, R = { l: 62, r: 14, o: 18, u: 46 };
+    ctx.clearRect(0, 0, b, h);
+    const sicht = [...this.reihen.values()].filter(r => r.sichtbar);
+    let xMax = 0; for (const r of sicht) if (r.d.length) xMax = Math.max(xMax, r.d[r.d.length - 1][0]);
+    const x1 = Math.max(o.fenster, xMax), x0 = x1 - o.fenster;
+    let y0 = o.yMin, y1 = o.yMax;
+    if (y0 === null || y1 === null) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of sicht) for (const [x, y] of r.d) if (x >= x0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (!isFinite(lo)) { lo = -1; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      const rand = 0.1 * (hi - lo);
+      if (y0 === null) y0 = lo - rand; if (y1 === null) y1 = hi + rand;
+    }
+    const X = x => R.l + (x - x0) / (x1 - x0) * (b - R.l - R.r);
+    const Y = y => h - R.u - (y - y0) / (y1 - y0) * (h - R.o - R.u);
+    ctx.font = `${fs(13)}px ${css("--schrift")}`; ctx.lineWidth = 1;
+    const tx = teilung(x0, x1, Math.max(3, Math.floor(b / 90))), ty = teilung(y0, y1, Math.max(3, Math.floor(h / 55)));
+    ctx.strokeStyle = "#e3e7ec"; ctx.fillStyle = "#5a6675";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const v of tx.t) { ctx.beginPath(); ctx.moveTo(X(v), R.o); ctx.lineTo(X(v), h - R.u); ctx.stroke();
+                            ctx.fillText(fmt(v, tx.stellen), X(v), h - R.u + 5); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const v of ty.t) { ctx.beginPath(); ctx.moveTo(R.l, Y(v)); ctx.lineTo(b - R.r, Y(v)); ctx.stroke();
+                            ctx.fillText(fmt(v, ty.stellen), R.l - 6, Y(v)); }
+    // Achsen (Nulllinie hervorheben)
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const yNull = (y0 < 0 && y1 > 0) ? Y(0) : h - R.u;
+    ctx.moveTo(R.l, yNull); ctx.lineTo(b - R.r, yNull); ctx.moveTo(R.l, R.o); ctx.lineTo(R.l, h - R.u); ctx.stroke();
+    ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${o.xName} in ${o.xEinheit}`, b - R.r, h - 4);
+    ctx.save(); ctx.translate(14, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+    const yText = o.yName ? (o.yEinheit ? `${o.yName} in ${o.yEinheit}` : o.yName) : sicht.map(r => r.achse).join(",  ");
+    ctx.fillText(yText, 0, 0); ctx.restore();
+    // Kurven
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    for (const r of sicht) {
+      ctx.strokeStyle = r.farbe; ctx.lineWidth = 2.5; ctx.beginPath(); let an = false;
+      for (const [x, y] of r.d) { if (x < x0 - 1e-9) continue; an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+      ctx.stroke();
+      if (r.d.length) { const [x, y] = r.d[r.d.length - 1]; ctx.fillStyle = r.farbe;
+                        ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  /** Knöpfe zum Ein-/Ausblenden der Kurven in ein Element einfügen */
+  auswahl(el) {
+    el.innerHTML = "";
+    for (const [id, r] of this.reihen) {
+      const k = document.createElement("button");
+      k.innerHTML = `<span style="color:${r.farbe}">━━</span> ${r.name}`;
+      k.classList.toggle("aktiv", r.sichtbar);
+      k.onclick = () => { r.sichtbar = !r.sichtbar; k.classList.toggle("aktiv", r.sichtbar); this.zeichnen(); };
+      el.appendChild(k);
+    }
+  }
+}
+
+/**
+ * Energiebalken. Beispiel:
+ *   const eb = new Balken(canvas, [{id:"pot", name:"E_Spann", farbe:css("--e-pot")}, ...], "J");
+ *   eb.zeichnen({pot: 0.2, kin: 0.1, ges: 0.3}, maxWert);
+ */
+class Balken {
+  constructor(canvas, arten, einheit = "J") { this.arten = arten; this.einheit = einheit;
+    this.lw = leinwand(canvas, () => this.letzte && this.zeichnen(...this.letzte)); }
+  zeichnen(werte, max) {
+    this.letzte = [werte, max];
+    const { ctx, b, h } = this.lw, n = this.arten.length, R = { l: 10, r: 10, o: 26, u: 30 };
+    ctx.clearRect(0, 0, b, h);
+    const bw = (b - R.l - R.r) / n, H = h - R.o - R.u, sk = max > 0 ? H / max : 0;
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(R.l, h - R.u); ctx.lineTo(b - R.r, h - R.u); ctx.stroke();
+    this.arten.forEach((a, i) => {
+      const v = Math.max(0, werte[a.id] || 0), x = R.l + i * bw + bw * 0.18, w = bw * 0.64;
+      ctx.fillStyle = a.farbe; ctx.fillRect(x, h - R.u - v * sk, w, v * sk);
+      ctx.font = `600 ${fs(14)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430"; ctx.textAlign = "center";
+      ctx.textBaseline = "top"; ctx.fillText(a.name, x + w / 2, h - R.u + 6);
+      ctx.textBaseline = "bottom"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+      ctx.fillText(fmt(werte[a.id] || 0, a.stellen ?? 2, this.einheit), x + w / 2, Math.max(R.o + 2, h - R.u - v * sk - 4));
+    });
+  }
+}
+
+/** Regler erzeugen. Liefert Objekt mit .wert; ruft beiAenderung(wert) auf. */
+function regler(container, { id, name, min, max, schritt, wert, einheit = "", stellen = 2, beiAenderung }) {
+  const box = document.createElement("div");
+  box.innerHTML = `<label for="r_${id}">${name} <span class="wert" id="w_${id}"></span></label>
+                   <input type="range" id="r_${id}" min="${min}" max="${max}" step="${schritt}" value="${wert}">`;
+  container.appendChild(box);
+  const inp = box.querySelector("input"), anz = box.querySelector(".wert");
+  const r = { get wert() { return parseFloat(inp.value); },
+              setzen(v) { inp.value = v; anz.textContent = fmt(parseFloat(inp.value), stellen, einheit); },
+              sperren(an) { inp.disabled = an; } };
+  r.setzen(wert);
+  inp.addEventListener("input", () => { anz.textContent = fmt(r.wert, stellen, einheit); beiAenderung && beiAenderung(r.wert); });
+  return r;
+}
+
+/** Datei aus der Seite heraus speichern (funktioniert offline) */
+function speichern(name, inhalt, typ) {
+  const a = document.createElement("a");
+  a.href = typeof inhalt === "string" ? URL.createObjectURL(new Blob([inhalt], { type: typ })) : inhalt;
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/** Mehrere Canvas nebeneinander als ein PNG speichern */
+function alsPNG(name, canvasListe) {
+  const b = canvasListe.reduce((s, c) => s + c.width, 0), h = Math.max(...canvasListe.map(c => c.height));
+  const z = document.createElement("canvas"); z.width = b; z.height = h;
+  const ctx = z.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  let x = 0; for (const c of canvasListe) { ctx.drawImage(c, x, 0); x += c.width; }
+  speichern(name, z.toDataURL("image/png"));
+}
+
+/**
+ * Simulationsschleife mit festem Zeitschritt (physikalisch sauber, unabhängig von der Bildrate).
+ *   const lauf = new Schleife({dt: 0.001, schritt: dt => {...}, bild: () => {...}});
+ *   lauf.start(); lauf.pause(); lauf.tempo = 0.2 (Zeitlupe)
+ */
+class Schleife {
+  constructor({ dt, schritt, bild, beiStatus }) {
+    Object.assign(this, { dt, schritt, bild, beiStatus, laeuft: false, tempo: 1, rest: 0, tAlt: 0 });
+    const tick = tJetzt => {
+      if (this.laeuft) {
+        let echt = Math.min(0.1, (tJetzt - this.tAlt) / 1000);   // nach Tab-Wechsel nicht springen
+        this.rest += echt * this.tempo;
+        let n = 0; while (this.rest >= this.dt && n < 20000) { this.schritt(this.dt); this.rest -= this.dt; n++; }
+      }
+      this.tAlt = tJetzt; this.bild(); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  start() { this.laeuft = true; this.beiStatus && this.beiStatus(true); }
+  pause() { this.laeuft = false; this.beiStatus && this.beiStatus(false); }
+  umschalten() { this.laeuft ? this.pause() : this.start(); }
+  einzelschritt(dauer) { this.pause(); const n = Math.round(dauer / this.dt); for (let i = 0; i < n; i++) this.schritt(this.dt); }
+}
+
+/**
+ * Schritt-für-Schritt-Modus zum Besprechen im Plenum.
+ *   schrittmodus([{text:"…", vorbereiten: () => {...}}, ...])
+ */
+function schrittmodus(schritte) {
+  let i = 0; const box = $("schritte");
+  const zeigen = () => { $("schrittNr").textContent = `Schritt ${i + 1} von ${schritte.length}`;
+    $("schrittText").innerHTML = schritte[i].text; schritte[i].vorbereiten && schritte[i].vorbereiten();
+    $("btnZurueck").disabled = i === 0; $("btnWeiter").disabled = i === schritte.length - 1; };
+  $("btnZurueck").onclick = () => { if (i > 0) { i--; zeigen(); } };
+  $("btnWeiter").onclick = () => { if (i < schritte.length - 1) { i++; zeigen(); } };
+  return { an() { box.classList.add("an"); i = 0; zeigen(); }, aus() { box.classList.remove("an"); },
+           get aktiv() { return box.classList.contains("an"); } };
+}
+
+/** Vollbild, Beamer-Ansicht, Tastatur */
+function bedienungEinrichten(lauf, { reset, einzel }) {
+  $("btnVoll").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $("btnGross").onclick = () => { document.body.classList.toggle("gross"); $("btnGross").classList.toggle("aktiv"); };
+  $("btnStart").onclick = () => lauf.umschalten();
+  $("btnReset").onclick = reset;
+  $("btnSchritt").onclick = einzel;
+  $("btnLangsam").onclick = () => { lauf.tempo = lauf.tempo === 1 ? 0.2 : 1;
+    $("btnLangsam").textContent = `Zeitlupe: ${lauf.tempo === 1 ? "aus" : "an (×0,2)"}`;
+    $("btnLangsam").classList.toggle("aktiv", lauf.tempo !== 1); };
+  lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Start"; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    const k = e.key.toLowerCase();
+    if (k === " ") { e.preventDefault(); lauf.umschalten(); }
+    else if (k === "r") reset(); else if (k === "arrowright") einzel();
+    else if (k === "l") $("btnLangsam").click(); else if (k === "g") $("btnGross").click();
+    else if (k === "f") $("btnVoll").click();
+  });
+}
+
+
+/* =====================================================================
+   MODELL – Folientunnel
+   Jeder Tunnel wird um seine Mitte beschrieben:  y = a·w² + e  (w: Abstand von der Mitte in m)
+   Angezeigte x-Koordinate: x = w + o  (o = 0: Ursprung in der Mitte, o = halbe Breite: Ursprung am linken Fußpunkt)
+     unser Tunnel   f(x) = −0,2x² + 3,2        h(x) = −0,2(x − 4)² + 3,2 = −0,2x² + 1,6x
+     Nachbarschule  k(x) = −0,25(x − 3,5)² + 3,0625 = −0,25x² + 1,75x
+     kleiner Tunnel t(x) = −0,3x² + 2,7
+   Frau Yılmaz (1,75 m) geht mit 0,6 m/s durch den Tunnel und bückt sich, wenn die Folie zu niedrig ist.
+   ===================================================================== */
+const GROESSE = 1.75, STAB = 2, VGEH = 0.6;
+const TUNNEL = {
+  f:     { id: "f", name: "Unser Tunnel", farbe: css("--tunnel"), a: -0.2, e: 3.2, fnM: "f", fnL: "h" },
+  k:     { id: "k", name: "Tunnel der Nachbarschule", farbe: css("--nachbar"), a: -0.25, e: 3.0625, fnM: "y", fnL: "k" },
+  t:     { id: "t", name: "Kleiner Tunnel", farbe: css("--klein"), a: -0.3, e: 2.7, fnM: "t", fnL: "y" },
+  eigen: { id: "eigen", name: "Eigener Tunnel", farbe: css("--eigen"), a: -0.2, e: 3.2, fnM: "y", fnL: "y", B: 8, H: 3.2 },
+};
+let T = TUNNEL.f;
+const folie = (Tn, w) => Tn.a * w * w + Tn.e;
+const halb = Tn => Math.sqrt(-Tn.e / Tn.a);
+const gehGrenze = Tn => Math.sqrt((1.25 - Tn.e) / Tn.a);
+
+const Z = { w: -2.5, dir: 1, t: 0 };            // Frau Yılmaz
+let oZiel = 0, oAnz = 0;                         // Lage des Ursprungs (in m links von der Mitte)
+const zeige = { koord: true, staebe: false, hoehe: false, sym: false, breite: false, null0: false, punkte: false, klein: false };
+
+function physikSchritt(dt) {
+  Z.t += dt;
+  const g = gehGrenze(T);
+  Z.w += Z.dir * VGEH * dt;
+  if (Z.w > g) { Z.w = g; Z.dir = -1; }
+  if (Z.w < -g) { Z.w = -g; Z.dir = 1; }
+}
+function neuStart() { lauf.pause(); Z.t = 0; Z.w = Math.max(-gehGrenze(T), Math.min(gehGrenze(T), -2.5)); Z.dir = 1; }
+
+/* ---------- Zahlen und Gleichungen ---------- */
+function zahl(v, n = 2) { const s = fmt(Math.abs(v) < 1e-9 ? 0 : v, n).replace("-", "−");
+  return s.includes(",") ? s.replace(/0+$/, "").replace(/,$/, "") : s; }
+const xi = "<i>x</i>";
+function gleichungen(Tn, links) {
+  const a = zahl(Tn.a, 4), e = zahl(Tn.e, 4);
+  if (!links) return `<i>${Tn.fnM}</i>(${xi}) = ${a}${xi}² + ${e}`.replace("<i>y</i>(<i>x</i>)", "<i>y</i>");
+  const w = halb(Tn), b = -2 * Tn.a * w;
+  const name = Tn.fnL === "y" ? "<i>y</i>" : `<i>${Tn.fnL}</i>(${xi})`;
+  return `${name} = ${a}·(${xi} − ${zahl(w, 2)})² + ${e} = ${a}${xi}² + ${zahl(b, 3)}${xi}`;
+}
+
+/* ---------- Szene ---------- */
+const szene = leinwand($("szene"), () => szeneZeichnen());
+const WMIN = -5.6, WMAX = 5.6, YMAX = 3.95;
+function koordinaten() {
+  const { b, h } = szene, unten = fs(40), oben = 8;
+  const sk = Math.min((b - 16) / (WMAX - WMIN), (h - unten - oben) / YMAX);
+  const ox = b / 2, boden = h - unten;
+  return { sk, X: w => ox + w * sk, Y: y => boden - y * sk, boden };
+}
+function punkt(ctx, K, w, y, farbe, text, { dx = 0, dy = -18, ausrichtung = "center", r = 5 } = {}) {
+  ctx.save(); ctx.fillStyle = farbe; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.X(w), K.Y(y), r, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+  if (text) beschriftung(ctx, text, K.X(w) + dx, K.Y(y) + dy, { groesse: 14, fett: true, farbe, ausrichtung });
+}
+function kreuz(ctx, K, w, y, farbe, text, dy = -18, dx = 0) {
+  const px = K.X(w), py = K.Y(y), s = 7;
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px - s, py - s); ctx.lineTo(px + s, py + s); ctx.moveTo(px - s, py + s); ctx.lineTo(px + s, py - s); ctx.stroke();
+  ctx.restore(); beschriftung(ctx, text, px + dx, py + dy, { groesse: 14, fett: true, farbe, ausrichtung: dx ? "left" : "center" });
+}
+function gestrichelt(ctx, x1, y1, x2, y2, farbe, breite = 1.5) {
+  ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = farbe; ctx.lineWidth = breite;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function masspfeil(ctx, x1, x2, y, farbe, text) {
+  pfeil(ctx, (x1 + x2) / 2, y, x1, y, farbe, 2, 9); pfeil(ctx, (x1 + x2) / 2, y, x2, y, farbe, 2, 9);
+  beschriftung(ctx, text, (x1 + x2) / 2, y, { groesse: 14, fett: true, farbe });
+}
+const xAnz = w => w + oAnz;                       // angezeigte x-Koordinate
+
+function tunnelPfad(ctx, K, Tn) {
+  const hb = halb(Tn); ctx.beginPath();
+  for (let i = 0; i <= 120; i++) { const w = -hb + 2 * hb * i / 120; const p = [K.X(w), K.Y(folie(Tn, w))]; i ? ctx.lineTo(...p) : ctx.moveTo(...p); }
+}
+function pflanze(ctx, K, w, s = 1) {            // Salatkopf
+  const x = K.X(w), y = K.Y(0), r = K.sk * 0.17 * s;
+  const blaetter = [[-60, "#4f9a3a"], [60, "#4f9a3a"], [-35, "#62b04a"], [35, "#62b04a"], [-12, "#78c25c"], [12, "#78c25c"], [0, "#8fd16f"]];
+  for (const [winkel, farbe] of blaetter) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(winkel * Math.PI / 180);
+    ctx.fillStyle = farbe; ctx.strokeStyle = "rgba(30,80,20,.5)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(0, -r * 0.75, r * 0.42, r * 0.8, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+function staebeZeichnen(ctx, K) {
+  if (T.e <= STAB) return;
+  const s = Math.sqrt((STAB - T.e) / T.a), gruen = "rgba(46,125,50,.18)";
+  ctx.fillStyle = gruen; ctx.fillRect(K.X(-s), K.Y(STAB), 2 * s * K.sk, K.Y(0) - K.Y(STAB));
+  gestrichelt(ctx, K.X(-halb(T) - 0.3), K.Y(STAB), K.X(halb(T) + 0.3), K.Y(STAB), css("--hilf"), 2);
+  beschriftung(ctx, "y = 2", K.X(halb(T) + 0.35), K.Y(STAB), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  const n = Math.max(2, Math.floor(2 * s / 0.7) + 1);
+  for (let i = 0; i < n; i++) {
+    const w = -s + 0.1 + (2 * s - 0.2) * i / (n - 1);
+    ctx.strokeStyle = "#8b5a2b"; ctx.lineWidth = Math.max(2, K.sk * 0.04);
+    ctx.beginPath(); ctx.moveTo(K.X(w), K.Y(0)); ctx.lineTo(K.X(w), K.Y(STAB)); ctx.stroke();
+    ctx.fillStyle = "#3d8b3d";
+    for (let j = 0; j < 5; j++) { const yy = 0.3 + j * 0.33, sx = (j % 2 ? 1 : -1) * K.sk * 0.1;
+      ctx.beginPath(); ctx.ellipse(K.X(w) + sx, K.Y(yy), K.sk * 0.1, K.sk * 0.05, 0, 0, 7); ctx.fill(); }
+    ctx.fillStyle = "#d32f2f";
+    for (const yy of [0.7, 1.3]) { ctx.beginPath(); ctx.arc(K.X(w) + K.sk * 0.12, K.Y(yy), Math.max(3, K.sk * 0.05), 0, 7); ctx.fill(); }
+  }
+  punkt(ctx, K, -s, STAB, css("--hilf"), `x = ${zahl(xAnz(-s), 2)}`, { dy: -16, dx: -6, ausrichtung: "right" });
+  punkt(ctx, K, s, STAB, css("--hilf"), `x = ${zahl(xAnz(s), 2)}`, { dy: -16, dx: 6, ausrichtung: "left" });
+  masspfeil(ctx, K.X(-s), K.X(s), K.boden + fs(26), css("--gut"), `Bereich für die Stäbe: ${fmt(2 * s, 2)} m`);
+}
+
+function person(ctx, K) {
+  const dir = Z.dir, w = Z.w;
+  const decke = Math.min(folie(T, w), folie(T, w + dir * 0.3)) - 0.06;
+  let theta = 0, knie = 0;
+  if (decke < GROESSE) {
+    const c = (decke - 0.95) / 0.8;
+    theta = Math.acos(Math.max(Math.cos(1.3), Math.min(1, c)));
+    const kopfOben = 0.95 + 0.8 * Math.cos(theta);
+    if (kopfOben > decke) knie = Math.min(0.35, kopfOben - decke);
+  }
+  const huefte = [w - dir * 0.05, 0.95 - knie], P = (x, y) => [K.X(x), K.Y(y)];
+  const schulter = [huefte[0] + dir * 0.55 * Math.sin(theta), huefte[1] + 0.55 * Math.cos(theta)];
+  const kopf = [huefte[0] + dir * 0.69 * Math.sin(theta), huefte[1] + 0.69 * Math.cos(theta)];
+  const schritt = Math.sin(Z.t * 7) * (lauf.laeuft ? 0.18 : 0.08);
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  // Beine
+  ctx.strokeStyle = "#34495e"; ctx.lineWidth = Math.max(4, K.sk * 0.11);
+  for (const s of [schritt, -schritt]) {
+    const fuss = [w + dir * s, 0.04], knieP = [(huefte[0] + fuss[0]) / 2 + dir * (0.08 + knie * 0.5), (huefte[1] + fuss[1]) / 2 + 0.02];
+    ctx.beginPath(); ctx.moveTo(...P(...huefte)); ctx.lineTo(...P(...knieP)); ctx.lineTo(...P(...fuss)); ctx.stroke();
+    ctx.strokeStyle = "#5d4037"; ctx.lineWidth = Math.max(4, K.sk * 0.08);
+    ctx.beginPath(); ctx.moveTo(...P(fuss[0] - dir * 0.03, 0.03)); ctx.lineTo(...P(fuss[0] + dir * 0.13, 0.03)); ctx.stroke();
+    ctx.strokeStyle = "#34495e"; ctx.lineWidth = Math.max(4, K.sk * 0.11);
+  }
+  // Rumpf
+  ctx.strokeStyle = "#2e7d32"; ctx.lineWidth = Math.max(8, K.sk * 0.24);
+  ctx.beginPath(); ctx.moveTo(...P(...huefte)); ctx.lineTo(...P(...schulter)); ctx.stroke();
+  // Arme
+  ctx.strokeStyle = "#c68e65"; ctx.lineWidth = Math.max(3, K.sk * 0.07);
+  const hand = [schulter[0] + dir * (0.15 + 0.3 * Math.sin(theta)) - schritt * dir * 0.5, schulter[1] - 0.55 + 0.25 * Math.sin(theta)];
+  ctx.beginPath(); ctx.moveTo(...P(...schulter)); ctx.lineTo(...P((schulter[0] + hand[0]) / 2, (schulter[1] + hand[1]) / 2 - 0.02)); ctx.lineTo(...P(...hand)); ctx.stroke();
+  // Kopf
+  const kr = 0.11;
+  ctx.fillStyle = "#c68e65"; ctx.beginPath(); ctx.arc(...P(kopf[0] + dir * 0.02 * Math.cos(theta), kopf[1] + 0.06 * Math.cos(theta)), kr * K.sk, 0, 7); ctx.fill();
+  ctx.fillStyle = "#2b1d14"; ctx.beginPath();
+  ctx.arc(...P(kopf[0] - dir * 0.02, kopf[1] + 0.08 * Math.cos(theta) + 0.02), kr * K.sk * 1.05, Math.PI * (dir > 0 ? 0.8 : -0.2) - theta * dir, Math.PI * (dir > 0 ? 2.1 : 1.1) - theta * dir); ctx.fill();
+  ctx.restore();
+  const aufrecht = theta === 0;
+  // Platz über dem Kopf
+  const fw = folie(T, w);
+  if (aufrecht) {
+    if (fw - GROESSE > 0.12) { pfeil(ctx, K.X(w) + 14, K.Y(GROESSE), K.X(w) + 14, K.Y(fw) + 3, css("--gut"), 2, 8);
+      pfeil(ctx, K.X(w) + 14, K.Y(fw), K.X(w) + 14, K.Y(GROESSE) - 3, css("--gut"), 2, 8); }
+    beschriftung(ctx, `${zahl((fw - GROESSE) * 100, 0)} cm Platz`, K.X(w) + 20, K.Y((fw + GROESSE) / 2), { groesse: 13, fett: true, farbe: css("--gut"), ausrichtung: "left" });
+  } else {
+    gestrichelt(ctx, K.X(w) - 16, K.Y(GROESSE), K.X(w) + 16, K.Y(GROESSE), css("--schlecht"), 2);
+    beschriftung(ctx, "1,75 m passt nicht – bücken!", K.X(w) + 20, K.Y(GROESSE) - 14, { groesse: 13, fett: true, farbe: css("--schlecht"), ausrichtung: "left" });
+  }
+  beschriftung(ctx, "Frau Yılmaz", K.X(w) - dir * K.sk * 0.3, K.Y(0.3), { groesse: 12, fett: true, farbe: "#2e7d32", ausrichtung: dir > 0 ? "right" : "left" });
+  szene.person = { x: K.X(w), y0: K.Y(GROESSE), y1: K.boden };
+}
+
+function szeneZeichnen() {
+  const { ctx, b, h } = szene, K = koordinaten();
+  ctx.clearRect(0, 0, b, h);
+  const g = ctx.createLinearGradient(0, 0, 0, K.boden); g.addColorStop(0, "#dceefb"); g.addColorStop(1, "#f4f9fd");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, b, K.boden);
+  ctx.fillStyle = "#8d6e4f"; ctx.fillRect(0, K.boden, b, h - K.boden);
+  ctx.fillStyle = "#7cb342"; ctx.fillRect(0, K.boden - 3, b, 6);
+  // Vergleichstunnel (Teil h)
+  if (zeige.klein) { ctx.save(); tunnelPfad(ctx, K, TUNNEL.f); ctx.setLineDash([7, 6]); ctx.strokeStyle = css("--tunnel") + "99"; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+    beschriftung(ctx, "großer Tunnel f", K.X(-2.9), K.Y(folie(TUNNEL.f, -2.9)) - 14, { groesse: 12, farbe: css("--tunnel"), ausrichtung: "right" }); }
+  // Folie
+  ctx.save(); tunnelPfad(ctx, K, T); ctx.closePath(); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill();
+  ctx.strokeStyle = T.farbe; ctx.lineWidth = Math.max(4, K.sk * 0.06); tunnelPfad(ctx, K, T); ctx.stroke(); ctx.restore();
+  // Pflanzen im Tunnel (Deko)
+  if (!zeige.staebe) for (const w of [-0.9 * halb(T), -0.75 * halb(T), 0.75 * halb(T), 0.9 * halb(T)]) pflanze(ctx, K, w, 0.9);
+  // Koordinatensystem
+  if (zeige.koord) {
+    const x0 = -oAnz;                                    // Lage der y-Achse (Weltkoordinate)
+    ctx.save(); ctx.strokeStyle = "rgba(31,92,153,.14)"; ctx.lineWidth = 1;
+    for (let x = Math.ceil(xAnz(WMIN)); x <= xAnz(WMAX); x++) { const w = x - oAnz; ctx.beginPath(); ctx.moveTo(K.X(w), K.Y(0)); ctx.lineTo(K.X(w), K.Y(YMAX - 0.05)); ctx.stroke(); }
+    for (let y = 1; y < YMAX; y++) { ctx.beginPath(); ctx.moveTo(K.X(WMIN), K.Y(y)); ctx.lineTo(K.X(WMAX), K.Y(y)); ctx.stroke(); }
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(K.X(WMIN), K.Y(0)); ctx.lineTo(K.X(WMAX) - 4, K.Y(0)); ctx.stroke();
+    pfeil(ctx, K.X(WMAX) - 30, K.Y(0), K.X(WMAX), K.Y(0), "#1b2430", 1.6, 9);
+    if (x0 >= WMIN && x0 <= WMAX) { ctx.beginPath(); ctx.moveTo(K.X(x0), K.Y(0)); ctx.lineTo(K.X(x0), K.Y(YMAX - 0.3)); ctx.stroke();
+      pfeil(ctx, K.X(x0), K.Y(YMAX - 0.5), K.X(x0), K.Y(YMAX - 0.02), "#1b2430", 1.6, 9); }
+    ctx.fillStyle = "#1b2430"; ctx.font = `${fs(12)}px ${css("--schrift")}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let x = Math.ceil(xAnz(WMIN)); x <= xAnz(WMAX) - 0.4; x++) ctx.fillText(String(x).replace("-", "−"), K.X(x - oAnz), K.boden + 6);
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let y = 1; y < YMAX - 0.3; y++) ctx.fillText(String(y), K.X(x0) - 5, K.Y(y));
+    ctx.font = `600 ${fs(13)}px ${css("--schrift")}`; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText("x in m", K.X(WMAX) - 4, K.Y(0) - 6);
+    ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText("Höhe in m", K.X(x0) + 6, K.Y(YMAX) + 2);
+    ctx.restore();
+    ctx.fillStyle = "#1b2430"; ctx.beginPath(); ctx.arc(K.X(x0), K.Y(0), 4, 0, 7); ctx.fill();
+  }
+  // Hilfen der Schritte
+  const hb = halb(T);
+  if (zeige.staebe) staebeZeichnen(ctx, K);
+  if (zeige.breite) {
+    punkt(ctx, K, -hb, 0, css("--hilf"), `x = ${zahl(xAnz(-hb), 2)}`, { dy: -18, dx: -8, ausrichtung: "right" });
+    punkt(ctx, K, hb, 0, css("--hilf"), `x = ${zahl(xAnz(hb), 2)}`, { dy: -18, dx: 8, ausrichtung: "left" });
+    masspfeil(ctx, K.X(-hb), K.X(hb), K.boden + fs(26), css("--hilf"), `Breite: ${zahl(2 * hb, 2)} m`);
+  }
+  if (zeige.hoehe) {
+    pfeil(ctx, K.X(0) + 10, K.Y(0), K.X(0) + 10, K.Y(T.e) + 4, css("--hilf"), 2.5, 10);
+    beschriftung(ctx, `${zahl(T.e, 2)} m`, K.X(0) + 16, K.Y(T.e / 2 + 0.3), { groesse: 14, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+    punkt(ctx, K, 0, T.e, T.farbe, `S(${zahl(oZiel, 2)} | ${zahl(T.e, 4)})`, { dy: -18, r: 6 });
+  }
+  if (zeige.sym) {
+    gestrichelt(ctx, K.X(-2), K.Y(folie(T, 2)), K.X(2), K.Y(folie(T, 2)), css("--hilf"), 2);
+    punkt(ctx, K, -2, folie(T, -2), css("--hilf"), "(−2 | 2,4)", { dx: -8, dy: -14, ausrichtung: "right" });
+    punkt(ctx, K, 2, folie(T, 2), css("--hilf"), "(2 | 2,4)", { dx: 8, dy: -14, ausrichtung: "left" });
+    gestrichelt(ctx, K.X(0), K.Y(0), K.X(0), K.Y(YMAX - 0.1), css("--hilf"), 2);
+    beschriftung(ctx, "Symmetrieachse: y-Achse", K.X(0) + 6, K.Y(YMAX - 0.25), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  }
+  if (zeige.null0) punkt(ctx, K, -hb, 0, css("--hilf"), "h(0) = 0  →  c = 0", { dx: 10, dy: -20, ausrichtung: "left", r: 6 });
+  if (zeige.punkte) {
+    kreuz(ctx, K, -hb, 0, T.farbe, "A(0 | 0)", -18, 10);
+    kreuz(ctx, K, -hb + 1, 1.5, T.farbe, "B(1 | 1,5)", -18, 10);
+    kreuz(ctx, K, -hb + 2, 2.5, T.farbe, "C(2 | 2,5)", -18, 10);
+  }
+  if (zeige.klein) {
+    kreuz(ctx, K, 3, 0, T.farbe, "P(3 | 0)", -20, 8);
+    masspfeil(ctx, K.X(-3), K.X(3), K.boden + fs(26), T.farbe, "6 m breit");
+  }
+  person(ctx, K);
+}
+
+/* ---------- Messwerte ---------- */
+function messwerteZeigen() {
+  const fw = folie(T, Z.w), platz = fw - GROESSE;
+  $("messwerte").innerHTML =
+    `<div>Frau Yılmaz bei <b>x</b> = ${fmt(xAnz(Z.w), 2, "m")}</div>
+     <div>Höhe der Folie: ${fmt(fw, 2, "m")}</div>
+     <div>${platz >= 0 ? "Platz über dem Kopf: " + fmt(platz * 100, 0, "cm") : "Es fehlen: " + fmt(-platz * 100, 0, "cm")}</div>
+     <div>${platz >= 0 ? "<b style='color:var(--gut)'>✓ aufrecht</b>" : "<b style='color:var(--schlecht)'>✗ muss sich bücken</b>"}</div>`;
+  $("gleichung2").innerHTML = `<span style="color:${T.farbe};font-weight:600">${T.name}:</span> ${gleichungen(T, oZiel > 0)}`;
+}
+
+/* ---------- Verwandlung: Normalparabel → f ---------- */
+const graph = leinwand($("graph"), () => graphZeichnen());
+let wandel = 0, wandelLaeuft = false, wandelHalt = 0;
+const GX0 = -6, GX1 = 6, GY0 = -4, GY1 = 5, WSTUFEN = 3;
+function wandelParameter(s) {
+  let k = s <= 1 ? 1 - 2 * s : -Math.exp(Math.log(0.2) * Math.min(1, s - 1));
+  const e = s > 2 ? 3.2 * Math.min(1, s - 2) : 0;
+  return { k, e };
+}
+function gleichungText(s) {
+  const { k, e } = wandelParameter(s), rot = t => `<span class="hilf">${t}</span>`;
+  const kT = Math.abs(k - 1) < 1e-6 ? "" : Math.abs(k + 1) < 1e-6 ? "−" : zahl(k, Math.abs(k) < 0.1 ? 3 : 2);
+  let txt = `<i>y</i> = ${kT ? rot(kT) : ""}<i>x</i>²${e > 1e-6 ? " + " + rot(zahl(e, 1)) : ""}`;
+  if (s >= WSTUFEN - 1e-3) txt += ` &nbsp;=&nbsp; <span class="tunnel"><i>f</i>(<i>x</i>)</span> ✓`;
+  return txt;
+}
+function graphZeichnen() {
+  const { ctx, b, h } = graph, R = { l: 30, r: 12, o: 12, u: 22 };
+  ctx.clearRect(0, 0, b, h);
+  const X = x => R.l + (x - GX0) / (GX1 - GX0) * (b - R.l - R.r), Y = y => h - R.u - (y - GY0) / (GY1 - GY0) * (h - R.o - R.u);
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1; ctx.font = `${fs(12)}px ${css("--schrift")}`; ctx.fillStyle = "#5a6675";
+  for (let x = GX0; x <= GX1; x++) { ctx.beginPath(); ctx.moveTo(X(x), Y(GY0)); ctx.lineTo(X(x), Y(GY1)); ctx.stroke(); }
+  for (let y = GY0; y <= GY1; y++) { ctx.beginPath(); ctx.moveTo(X(GX0), Y(y)); ctx.lineTo(X(GX1), Y(y)); ctx.stroke(); }
+  ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(X(GX0), Y(0)); ctx.lineTo(X(GX1), Y(0)); ctx.moveTo(X(0), Y(GY0)); ctx.lineTo(X(0), Y(GY1)); ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let x = -6; x <= GX1; x += 2) if (x) ctx.fillText(String(x).replace("-", "−"), X(x), Y(0) + 3);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let y = GY0; y <= GY1; y += 2) if (y) ctx.fillText(String(y).replace("-", "−"), X(0) - 4, Y(y));
+  const zeichne = (fn, farbe, breite, strich) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    ctx.strokeStyle = farbe; ctx.lineWidth = breite; if (strich) ctx.setLineDash(strich);
+    ctx.beginPath(); let an = false;
+    for (let i = 0; i <= 400; i++) { const x = GX0 + (GX1 - GX0) * i / 400, y = fn(x);
+      if (y < GY0 - 1 || y > GY1 + 1) { an = false; continue; }
+      an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+    ctx.stroke(); ctx.restore();
+  };
+  zeichne(x => x * x, css("--norm"), 2, [5, 4]);
+  zeichne(x => folie(TUNNEL.f, x), css("--tunnel") + "66", 3, [8, 6]);
+  const { k, e } = wandelParameter(wandel);
+  zeichne(x => k * x * x + e, css("--hilf"), 3.5);
+  ctx.fillStyle = css("--hilf"); ctx.beginPath(); ctx.arc(X(0), Y(e), 5, 0, 7); ctx.fill();
+  beschriftung(ctx, `S(0 | ${zahl(e, 1)})`, X(0) + 8, Y(e) + (k > 0 ? 14 : -14), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  if (wandel < 0.05) beschriftung(ctx, "Normalparabel", X(1.6), Y(4.4), { groesse: 12, farbe: "#5a6675", ausrichtung: "left" });
+  beschriftung(ctx, "Tunnel f", X(3.6), Y(1.4), { groesse: 12, farbe: css("--tunnel"), ausrichtung: "left" });
+}
+function wandelAnzeigen() {
+  $("gleichung").innerHTML = gleichungText(wandel);
+  [...$("wandelListe").children].forEach((li, i) => {
+    li.classList.toggle("fertig", wandel >= i + 1 - 1e-6);
+    li.classList.toggle("jetzt", wandel > i + 1e-6 && wandel < i + 1 - 1e-6);
+  });
+  RW.setzen(wandel);
+}
+function wandelTick(dt) {
+  if (!wandelLaeuft) return;
+  if (wandelHalt > 0) { wandelHalt -= dt; return; }
+  const alt = wandel; wandel = Math.min(WSTUFEN, wandel + 0.45 * dt);
+  if (Math.floor(alt + 1e-9) !== Math.floor(wandel + 1e-9)) { wandel = Math.round(wandel); wandelHalt = 0.9; }
+  if (wandel >= WSTUFEN) { wandel = WSTUFEN; wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; }
+}
+function wandelStart() { if (wandel >= WSTUFEN) wandel = 0; wandelLaeuft = true; wandelHalt = wandel === 0 ? 0.6 : 0; $("btnWandel").textContent = "❚❚ Pause"; }
+const wandelStopp = () => { wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; };
+const RW = regler($("wandelRegler"), { id: "wandel", name: "Schritt der Verwandlung", min: 0, max: WSTUFEN, schritt: 0.01, wert: 0,
+  einheit: "von 3", stellen: 1, beiAenderung: v => { wandel = v; wandelStopp(); } });
+$("btnWandel").onclick = () => wandelLaeuft ? wandelStopp() : wandelStart();
+$("btnWandelReset").onclick = () => { wandel = 0; wandelStopp(); };
+
+/* ---------- Tunnelwahl, Ursprung, eigener Tunnel ---------- */
+const R = {}, E = TUNNEL.eigen;
+function eigenAktualisieren() { E.e = E.H; E.a = -E.H / (E.B / 2) ** 2; if (T === E) { Z.w = Math.max(-gehGrenze(T), Math.min(gehGrenze(T), Z.w)); if (oZiel) oZiel = halb(T); } }
+R.B = regler($("regler"), { id: "B", name: "Breite am Boden", min: 4, max: 10, schritt: 0.5, wert: E.B, einheit: "m", stellen: 1,
+  beiAenderung: v => { E.B = v; eigenAktualisieren(); } });
+R.H = regler($("regler"), { id: "H", name: "Höhe in der Mitte", min: 1.6, max: 3.8, schritt: 0.05, wert: E.H, einheit: "m",
+  beiAenderung: v => { E.H = v; eigenAktualisieren(); } });
+
+const knoepfe = {};
+function tunnelSetzen(id) {
+  T = TUNNEL[id]; for (const k in knoepfe) knoepfe[k].classList.toggle("aktiv", k === id);
+  $("eigenBox").style.display = id === "eigen" ? "block" : "none";
+  if (oZiel > 0) oZiel = halb(T);
+  Z.w = Math.max(-gehGrenze(T), Math.min(gehGrenze(T), Z.w));
+}
+for (const [id, text] of [["f", "Unser Tunnel f"], ["k", "Nachbarschule k"], ["t", "Kleiner Tunnel t"], ["eigen", "Eigener Tunnel"]]) {
+  const k = document.createElement("button"); k.textContent = text; knoepfe[id] = k;
+  k.onclick = () => { schritte.aus(); hilfenAus(); tunnelSetzen(id); };
+  $("presets").appendChild(k);
+}
+function ursprung(links, sofort = false) {
+  oZiel = links ? halb(T) : 0; if (sofort) oAnz = oZiel;
+  $("btnMitte").classList.toggle("aktiv", !links); $("btnLinks").classList.toggle("aktiv", links);
+}
+$("btnMitte").onclick = () => ursprung(false);
+$("btnLinks").onclick = () => ursprung(true);
+function hilfenAus() { Object.assign(zeige, { staebe: false, hoehe: false, sym: false, breite: false, null0: false, punkte: false, klein: false });
+  $("btnStaebe").classList.remove("aktiv"); }
+$("btnKoord").onclick = () => { zeige.koord = !zeige.koord; $("btnKoord").classList.toggle("aktiv", zeige.koord); };
+$("btnStaebe").onclick = () => { zeige.staebe = !zeige.staebe; $("btnStaebe").classList.toggle("aktiv", zeige.staebe); };
+
+/* ---------- Ziehen ---------- */
+let ziehen = false;
+$("szene").addEventListener("pointerdown", e => {
+  const p = szene.person, r = $("szene").getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (p && Math.abs(px - p.x) < 40 && py > p.y0 - 30 && py < p.y1 + 10) { lauf.pause(); ziehen = true; $("szene").setPointerCapture(e.pointerId); }
+});
+$("szene").addEventListener("pointermove", e => {
+  if (!ziehen) return; const K = koordinaten(), r = $("szene").getBoundingClientRect();
+  const w = (e.clientX - r.left - szene.b / 2) / K.sk, g = gehGrenze(T);
+  const neu = Math.max(-g, Math.min(g, Math.round(w * 20) / 20));
+  if (neu !== Z.w) Z.dir = neu > Z.w ? 1 : -1; Z.w = neu;
+});
+$("szene").addEventListener("pointerup", () => { ziehen = false; });
+
+/* ---------- Schritt für Schritt: Aufgabe a) bis h) ---------- */
+const r = t => `<span class="rechnung">${t}</span>`;
+function vorbereiten(tunnel, links, w, dir = 1, gleiten = false) { hilfenAus(); lauf.pause(); tunnelSetzen(tunnel); ursprung(links, !gleiten); Z.w = w; Z.dir = dir; }
+const schritte = schrittmodus([
+  { text: `<b>Die Situation.</b> Der Querschnitt des Tunnels ist eine nach unten geöffnete Parabel:
+     ${r("<i>f</i>(<i>x</i>) = −0,2<i>x</i>² + 3,2")}
+     <i>x</i>: Entfernung von der Mitte des Tunnels, <i>f</i>(<i>x</i>): Höhe der Folie (beides in m).
+     Drücke <b>▶ Frau Yılmaz geht los</b> und beobachte, wo sie aufrecht stehen kann.`,
+    vorbereiten: () => { vorbereiten("f", false, -2.5); } },
+  { text: `<b>a) Höhe in der Mitte.</b> In der Mitte ist <i>x</i> = 0:
+     ${r("<i>f</i>(0) = −0,2·0² + 3,2 = <b>3,2</b>")}
+     Der Tunnel ist in der Mitte <b>3,20 m</b> hoch. Das ist das absolute Glied <span class="hilf"><i>c</i> = 3,2</span>, der Scheitelpunkt ist S(0 | 3,2).`,
+    vorbereiten: () => { vorbereiten("f", false, -1.6); zeige.hoehe = true; } },
+  { text: `<b>b) Normalparabel und Symmetrie.</b> In der Karte „Von der Normalparabel zum Tunnel“ siehst du:
+     ${r("<i>y</i> = <i>x</i>² &nbsp;→&nbsp; spiegeln (−) &nbsp;→&nbsp; stauchen (0,2) &nbsp;→&nbsp; 3,2 nach oben")}
+     In der Gleichung steht nur <i>x</i>², keine Klammer (<i>x</i> − <i>d</i>)². Der Scheitel bleibt auf der <i>y</i>-Achse.
+     Deshalb ist der Graph symmetrisch zur <i>y</i>-Achse: <span class="hilf"><i>f</i>(−2) = <i>f</i>(2) = 2,4</span>.`,
+    vorbereiten: () => { vorbereiten("f", false, -3); zeige.sym = true; wandel = 0; wandelStart(); } },
+  { text: `<b>c) Kann Frau Yılmaz aufrecht stehen?</b> Sie ist 1,75 m groß und steht 2 m von der Mitte entfernt:
+     ${r("<i>f</i>(2) = −0,2·2² + 3,2 = −0,8 + 3,2 = <b>2,4</b>")}
+     2,40 m &gt; 1,75 m: Sie kann <b>aufrecht stehen</b>, es bleiben 65 cm Platz. Ziehe sie weiter nach außen: Ab etwa 2,7 m muss sie sich bücken.`,
+    vorbereiten: () => { vorbereiten("f", false, 2, -1); } },
+  { text: `<b>d) Breite am Boden.</b> Am Boden ist die Höhe 0:
+     ${r("−0,2<i>x</i>² + 3,2 = 0 &nbsp;| −3,2<br>−0,2<i>x</i>² = −3,2 &nbsp;| : (−0,2)<br><i>x</i>² = 16 &nbsp;→&nbsp; <i>x</i>₁ = −4, &nbsp;<i>x</i>₂ = 4")}
+     Breite: 4 − (−4) = <b>8 m</b>.`,
+    vorbereiten: () => { vorbereiten("f", false, -1); zeige.breite = true; } },
+  { text: `<b>e) Tomatenstäbe.</b> Die 2 m hohen Stäbe dürfen die Folie nicht berühren. Wo ist die Folie genau 2 m hoch?
+     ${r("−0,2<i>x</i>² + 3,2 = 2 &nbsp;| −3,2<br>−0,2<i>x</i>² = −1,2 &nbsp;| : (−0,2)<br><i>x</i>² = 6 &nbsp;→&nbsp; <i>x</i> ≈ −2,45 &nbsp;oder&nbsp; <i>x</i> ≈ 2,45")}
+     Die Stäbe dürfen höchstens 2,45 m links oder rechts von der Mitte stehen. Breite des Bereichs: 2·2,45 ≈ <b>4,90 m</b>.`,
+    vorbereiten: () => { vorbereiten("f", false, -3.05); zeige.staebe = true; $("btnStaebe").classList.add("aktiv"); } },
+  { text: `<b>f) Neues Koordinatensystem (1).</b> Der Ursprung wandert an den <b>linken Fußpunkt</b>. Der Tunnel bleibt, wie er ist –
+     nur die Zahlen an der <i>x</i>-Achse ändern sich. Die Mitte liegt jetzt bei <i>x</i> = 4:
+     ${r("Scheitelpunkt S(4 | 3,2), Form bleibt (<i>a</i> = −0,2)<br><b><i>h</i>(<i>x</i>) = −0,2·(<i>x</i> − 4)² + 3,2</b>")}`,
+    vorbereiten: () => { vorbereiten("f", false, -1.6); oAnz = 0; ursprung(true); zeige.hoehe = true; } },
+  { text: `<b>f) Neues Koordinatensystem (2).</b> Ausmultiplizieren mit der 2. binomischen Formel:
+     ${r("<i>h</i>(<i>x</i>) = −0,2·(<i>x</i>² − 8<i>x</i> + 16) + 3,2<br>= −0,2<i>x</i>² + 1,6<i>x</i> − 3,2 + 3,2 = <b>−0,2<i>x</i>² + 1,6<i>x</i></b>")}
+     <i>c</i> = 0, weil der Graph jetzt durch den Ursprung geht: Am linken Fußpunkt ist die Höhe 0, also <span class="hilf"><i>h</i>(0) = <i>c</i> = 0</span>.`,
+    vorbereiten: () => { vorbereiten("f", true, 1); zeige.null0 = true; } },
+  { text: `<b>g) Der Tunnel der Nachbarschule.</b> Ursprung am linken Fußpunkt, gemessen: <span class="nachbar">A(0 | 0), B(1 | 1,5), C(2 | 2,5)</span>.
+     ${r("A: <i>c</i> = 0 &nbsp;&nbsp; B: <i>a</i> + <i>b</i> = 1,5 (II) &nbsp;&nbsp; C: 4<i>a</i> + 2<i>b</i> = 2,5 (III)<br>(III) − 2·(II): 2<i>a</i> = −0,5 &nbsp;→&nbsp; <i>a</i> = −0,25; &nbsp; in (II): <i>b</i> = 1,75")}
+     <b class="nachbar"><i>k</i>(<i>x</i>) = −0,25<i>x</i>² + 1,75<i>x</i></b> &nbsp;(Dieser Tunnel ist 7 m breit und etwa 3,06 m hoch.)`,
+    vorbereiten: () => { vorbereiten("k", true, 1.2); zeige.punkte = true; } },
+  { text: `<b>h) Der kleine Tunnel.</b> 6 m breit, 2,70 m hoch, Ursprung in der Mitte. Ansatz <i>t</i>(<i>x</i>) = <i>ax</i>² + <i>c</i>:
+     ${r("Höhe in der Mitte: <i>c</i> = 2,7<br>Fußpunkt P(3 | 0): &nbsp;<i>a</i>·3² + 2,7 = 0 &nbsp;→&nbsp; 9<i>a</i> = −2,7 &nbsp;→&nbsp; <i>a</i> = −0,3")}
+     <b class="klein2"><i>t</i>(<i>x</i>) = −0,3<i>x</i>² + 2,7</b>. Drücke ▶ – im kleinen Tunnel muss Frau Yılmaz sich schon bald bücken.`,
+    vorbereiten: () => { vorbereiten("t", false, 0.6); zeige.klein = true; } },
+]);
+$("btnSchrittmodus").onclick = () => { if (schritte.aktiv) { schritte.aus(); hilfenAus(); } else schritte.an(); };
+
+/* ---------- Erklärung ---------- */
+$("infoText").innerHTML = `
+  <p>Die Simulation gehört zur Aufgabe <b>„Folientunnel im Schulgarten“</b>. Der Querschnitt unseres Tunnels ist die Parabel
+  <span class="tunnel"><i>f</i>(<i>x</i>) = −0,2<i>x</i>² + 3,2</span> (Ursprung in der Mitte). Legt man den Ursprung an den
+  linken Fußpunkt, wird daraus <i>h</i>(<i>x</i>) = −0,2(<i>x</i> − 4)² + 3,2 = −0,2<i>x</i>² + 1,6<i>x</i>.</p>
+  <p>Frau Yılmaz (1,75 m) kann man laufen lassen oder ziehen. Grün bedeutet: Sie kann aufrecht stehen. Rot: Die Folie ist niedriger als 1,75 m.</p>
+  <p>Mit <b>„Aufgabe Schritt für Schritt“</b> gehst du die Teilaufgaben a) bis h) durch. Bei „Eigener Tunnel“ stellst du Breite und Höhe selbst ein.</p>`;
+
+/* ---------- Start ---------- */
+const lauf = new Schleife({ dt: 0.002, schritt: physikSchritt,
+  bild: () => { szeneZeichnen(); graphZeichnen(); messwerteZeigen(); wandelAnzeigen(); } });
+let tAltW = performance.now();
+(function tick(t) { const dt = Math.min(0.1, (t - tAltW) / 1000); tAltW = t; wandelTick(dt);
+  const dO = oZiel - oAnz; oAnz += Math.sign(dO) * Math.min(Math.abs(dO), 3 * dt);
+  requestAnimationFrame(tick); })(performance.now());
+bedienungEinrichten(lauf, { reset: () => { schritte.aus(); hilfenAus(); tunnelSetzen(T.id); ursprung(false); neuStart(); },
+                            einzel: () => lauf.einzelschritt(0.25) });
+lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Frau Yılmaz geht los"; };
+$("btnPNG").onclick = () => alsPNG("folientunnel.png", [$("szene")]);
+eigenAktualisieren(); tunnelSetzen("f"); neuStart();
+</script>
+</body>
+</html>

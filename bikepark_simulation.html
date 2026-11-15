@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprung im Bikepark – Parabeln im Alltag</title>
+<!--
+  Simulation zur Aufgabe „Sprung im Bikepark“ (Parabeln im Alltag – E-Kurs 10)
+  Jonas h(x) = −0,2(x − 2)² + 1,8 = −0,2x² + 0,8x + 1 · Ben k(x) = −0,2x² + 0,8x + 1,2 · Elif s(x) = −0,25(x − 2)² + 2,25
+  Holzstapel bei 3,5 m (1,30 m hoch), Landefläche 4 m bis 6 m. Eine Datei, offline, keine externen Einbindungen.
+-->
+<style>
+  :root {
+    --hg: #ffffff; --flaeche: #f4f6f9; --rand: #d5dbe3; --text: #1b2430; --text2: #5a6675;
+    --akzent: #1f5c99;
+    --jonas: #1f5c99; --ben: #2e7d32; --elif: #c62828; --eigen: #7b3294; --hilf: #d95f02; --norm: #8a96a5;
+    --schrift: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--flaeche); color: var(--text); font-family: var(--schrift);
+         font-size: 1rem; line-height: 1.4; }
+  body.gross { font-size: 1.25rem; }
+  header { display: flex; align-items: center; gap: .8em; padding: .5em 1em;
+           background: var(--akzent); color: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 1.3em; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  header button { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+  main { display: grid; gap: .8em; padding: .8em;
+         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+         grid-template-areas: "szene szene" "steuerung graph" "regler graph" "info info"; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr);
+           grid-template-areas: "szene" "steuerung" "graph" "regler" "info"; }
+  }
+  .karte { background: var(--hg); border: 1px solid var(--rand); border-radius: 10px; padding: .7em; min-width: 0; }
+  .karte h2 { font-size: 1em; margin: 0 0 .4em; color: var(--text2); font-weight: 600; }
+  #szeneKarte { grid-area: szene; } #graphKarte { grid-area: graph; }
+  #steuerKarte { grid-area: steuerung; } #reglerKarte { grid-area: regler; } #infoKarte { grid-area: info; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  #szene { aspect-ratio: 3.3 / 1; min-height: 230px; max-height: 62vh; }
+  #graph { height: 40vh; min-height: 240px; }
+  button { font: inherit; font-size: 1em; padding: .45em .9em; min-height: 2.6em; min-width: 2.6em;
+           border-radius: 8px; border: 1px solid var(--rand); background: var(--hg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--akzent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.haupt { background: var(--akzent); color: #fff; border-color: var(--akzent); font-weight: 600; }
+  button.aktiv { outline: 3px solid var(--akzent); outline-offset: 1px; }
+  .zeile { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; }
+  .messwerte { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: .3em .8em;
+               margin-top: .6em; font-variant-numeric: tabular-nums; }
+  .messwerte div { background: var(--flaeche); border-radius: 6px; padding: .25em .5em; }
+  .messwerte b { font-weight: 600; }
+  .regler { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: .6em 1.4em; }
+  .regler label { display: block; font-weight: 600; }
+  .regler .wert { float: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; height: 2.2em; accent-color: var(--akzent); }
+  .presets { margin-top: .7em; }
+  #schritte { display: none; margin-top: .6em; padding: .6em .8em; border-left: 5px solid var(--akzent);
+              background: #eef4fb; border-radius: 6px; }
+  #schritte.an { display: block; }
+  #schrittText { font-size: 1.1em; margin: .2em 0 .5em; }
+  #schrittText .rechnung { display: block; margin: .3em 0 .3em 1em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .gleichung { font-size: 1.25em; text-align: center; margin: .4em 0; font-variant-numeric: tabular-nums; min-height: 1.6em; }
+  ol.wandel { margin: .3em 0 0; padding-left: 1.4em; }
+  ol.wandel li { padding: .1em .3em; border-radius: 5px; color: var(--text2); }
+  ol.wandel li.jetzt { background: #fdebd9; color: var(--text); font-weight: 600; }
+  ol.wandel li.fertig { color: var(--text); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .klein { color: var(--text2); font-size: .85em; }
+  kbd { border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em;
+        font-size: .85em; background: var(--flaeche); }
+  .jonas { color: var(--jonas); font-weight: 600; } .ben { color: var(--ben); font-weight: 600; } .elif { color: var(--elif); font-weight: 600; }
+  .eigen { color: var(--eigen); font-weight: 600; } .hilf { color: var(--hilf); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titel">Sprung im Bikepark – eine Parabel in der Luft</h1>
+  <button id="btnGross" title="Große Schrift für den Beamer (G)">Beamer-Ansicht</button>
+  <button id="btnVoll" title="Vollbild (F)">Vollbild</button>
+</header>
+
+<main>
+  <section class="karte" id="szeneKarte">
+    <h2>Bikepark (Seitenansicht, Maße in Metern)</h2>
+    <canvas id="szene" aria-label="Animation des Sprungs"></canvas>
+    <div class="zeile" style="margin-top:.4em">
+      <button id="btnKoord" class="aktiv">Koordinatensystem</button>
+      <button id="btnBahn">Ganze Flugbahn zeigen</button>
+    </div>
+  </section>
+
+  <section class="karte" id="steuerKarte">
+    <div class="zeile">
+      <button id="btnStart" class="haupt" title="Start/Pause (Leertaste)">▶ Sprung</button>
+      <button id="btnSchritt" title="Ein Stück weiter (→)">Einzelschritt</button>
+      <button id="btnReset" title="Zurücksetzen (R)">↺ Zurücksetzen</button>
+      <button id="btnLangsam" title="Zeitlupe umschalten (L)">Zeitlupe: aus</button>
+    </div>
+    <div class="messwerte" id="messwerte"></div>
+    <div class="zeile presets" style="margin-top:.6em">
+      <button id="btnSchrittmodus" class="haupt">Aufgabe Schritt für Schritt</button>
+    </div>
+    <div id="schritte">
+      <div class="zeile" style="justify-content:space-between">
+        <b id="schrittNr"></b>
+        <span class="zeile"><button id="btnZurueck">◀ zurück</button><button id="btnWeiter" class="haupt">weiter ▶</button></span>
+      </div>
+      <div id="schrittText"></div>
+    </div>
+  </section>
+
+  <section class="karte" id="graphKarte">
+    <h2>Was die Zahlen in der Scheitelpunktform bedeuten</h2>
+    <canvas id="graph" aria-label="Verwandlung der Normalparabel"></canvas>
+    <div class="gleichung" id="gleichung"></div>
+    <div class="zeile">
+      <button id="btnWandel" class="haupt">▶ Verwandlung abspielen</button>
+      <button id="btnWandelReset">↺ Normalparabel</button>
+    </div>
+    <div class="regler" id="wandelRegler" style="margin-top:.4em"></div>
+    <ol class="wandel" id="wandelListe">
+      <li>an der <i>x</i>-Achse spiegeln (nach unten geöffnet)</li>
+      <li>mit dem Faktor 0,2 stauchen (breiter)</li>
+      <li>um 2 nach rechts verschieben</li>
+      <li>um 1,8 nach oben verschieben</li>
+    </ol>
+  </section>
+
+  <section class="karte" id="reglerKarte">
+    <h2>Wer springt?</h2>
+    <div class="zeile" id="presets"></div>
+    <div id="eigenBox" style="display:none;margin-top:.7em">
+      <p class="klein" style="margin:.2em 0 .5em">Eigener Sprung in Scheitelpunktform
+        <i>y</i> = <i>a</i>·(<i>x</i> − <i>d</i>)² + <i>e</i>: Stelle Kantenhöhe und höchsten Punkt ein.
+        Kommst du über den Holzstapel und landest auf der Landefläche?</p>
+      <div class="regler" id="regler"></div>
+      <p id="eigenGl" style="margin:.5em 0 0"></p>
+    </div>
+    <div class="zeile presets"><button id="btnPNG" title="Bild des Sprungs speichern">Bild speichern (PNG)</button></div>
+  </section>
+
+  <section class="karte" id="infoKarte">
+    <details>
+      <summary>Was zeigt die Simulation?</summary>
+      <div id="infoText"></div>
+    </details>
+    <p class="klein">Tastatur: <kbd>Leertaste</kbd> Sprung/Pause · <kbd>R</kbd> Zurücksetzen ·
+      <kbd>→</kbd> Einzelschritt · <kbd>L</kbd> Zeitlupe · <kbd>G</kbd> Beamer-Ansicht · <kbd>F</kbd> Vollbild</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   BAUKASTEN – allgemein verwendbar, in neuen Simulationen unverändert lassen
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Schriftgröße auf der Leinwand – wächst in der Beamer-Ansicht mit */
+const fs = px => Math.round(px * (document.body.classList.contains("gross") ? 1.3 : 1));
+
+/** Zahl deutsch formatieren: fmt(1.234, 2, "m") -> "1,23 m" */
+function fmt(x, stellen = 2, einheit = "") {
+  if (!isFinite(x)) return "–";
+  const s = x.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  return einheit ? s + " " + einheit : s;
+}
+
+/** Canvas mit scharfer Darstellung (HiDPI). Liefert {ctx, b, h} in CSS-Pixeln, passt sich an. */
+function leinwand(canvas, beiGroesse) {
+  const obj = { canvas, ctx: canvas.getContext("2d"), b: 0, h: 0 };
+  const anpassen = (melden = true) => {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    obj.b = Math.max(1, r.width); obj.h = Math.max(1, r.height);
+    canvas.width = Math.round(obj.b * dpr); canvas.height = Math.round(obj.h * dpr);
+    obj.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (melden && beiGroesse) beiGroesse();
+  };
+  anpassen(false);                       // Größe sofort setzen, Neuzeichnen erst bei Änderungen
+  new ResizeObserver(() => anpassen()).observe(canvas);
+  return obj;
+}
+
+/** Pfeil zeichnen (für Kräfte, Geschwindigkeiten, Maße) */
+function pfeil(ctx, x1, y1, x2, y2, farbe, breite = 3, spitze = 12) {
+  const w = Math.atan2(y2 - y1, x2 - x1), l = Math.hypot(x2 - x1, y2 - y1);
+  if (l < 1) return;
+  const s = Math.min(spitze, l * 0.6);
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - s * 0.7 * Math.cos(w), y2 - s * 0.7 * Math.sin(w)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(w - 0.4), y2 - s * Math.sin(w - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(w + 0.4), y2 - s * Math.sin(w + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Text mit Hintergrund (gut lesbar über Linien) */
+function beschriftung(ctx, text, x, y, { farbe = "#1b2430", groesse = 15, ausrichtung = "center",
+                                        grundlinie = "middle", fett = false, hintergrund = true } = {}) {
+  ctx.save(); groesse = fs(groesse); ctx.font = `${fett ? "600 " : ""}${groesse}px ${css("--schrift")}`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = grundlinie;
+  const m = ctx.measureText(text), pad = 3;
+  let x0 = ausrichtung === "center" ? x - m.width / 2 : ausrichtung === "right" ? x - m.width : x;
+  if (hintergrund) { ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillRect(x0 - pad, y - groesse * 0.6 - pad, m.width + 2 * pad, groesse * 1.2 + 2 * pad); }
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y); ctx.restore();
+}
+
+/** "Schöne" Achsenteilung */
+function teilung(min, max, ziel = 6) {
+  const roh = (max - min) / ziel, p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const f = roh / p, schritt = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const t = []; for (let v = Math.ceil(min / schritt) * schritt; v <= max + 1e-9 * schritt; v += schritt) t.push(v);
+  return { t, schritt, stellen: Math.max(0, -Math.floor(Math.log10(schritt) + 1e-9)) };
+}
+
+/**
+ * Live-Diagramm (Zeitreihen). Beispiel:
+ *   const d = new Diagramm(canvas, {xName:"t", xEinheit:"s", yName:"x", yEinheit:"m", fenster:10});
+ *   d.reihe("x", "Auslenkung", "#1f5c99");  d.punkt("x", t, x);  d.zeichnen();
+ * fenster = sichtbare Zeitspanne (mitlaufend); yMin/yMax fest oder automatisch.
+ */
+class Diagramm {
+  constructor(canvas, opt) {
+    this.o = Object.assign({ xName: "t", xEinheit: "s", yName: null, yEinheit: "", fenster: 10,
+                             yMin: null, yMax: null }, opt);
+    this.reihen = new Map(); this.lw = leinwand(canvas, () => this.zeichnen());
+  }
+  /** name = Text für den Knopf, achse = Achsenbeschriftung, z. B. "s in cm" */
+  reihe(id, name, farbe, sichtbar = true, achse = name) { this.reihen.set(id, { name, farbe, sichtbar, achse, d: [] }); }
+  punkt(id, x, y) { const r = this.reihen.get(id); r.d.push([x, y]); if (r.d.length > 20000) r.d.splice(0, 5000); }
+  leeren() { for (const r of this.reihen.values()) r.d = []; }
+  achsen(opt) { Object.assign(this.o, opt); }
+  zeichnen() {
+    const { ctx, b, h } = this.lw, o = this.o, R = { l: 62, r: 14, o: 18, u: 46 };
+    ctx.clearRect(0, 0, b, h);
+    const sicht = [...this.reihen.values()].filter(r => r.sichtbar);
+    let xMax = 0; for (const r of sicht) if (r.d.length) xMax = Math.max(xMax, r.d[r.d.length - 1][0]);
+    const x1 = Math.max(o.fenster, xMax), x0 = x1 - o.fenster;
+    let y0 = o.yMin, y1 = o.yMax;
+    if (y0 === null || y1 === null) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of sicht) for (const [x, y] of r.d) if (x >= x0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (!isFinite(lo)) { lo = -1; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      const rand = 0.1 * (hi - lo);
+      if (y0 === null) y0 = lo - rand; if (y1 === null) y1 = hi + rand;
+    }
+    const X = x => R.l + (x - x0) / (x1 - x0) * (b - R.l - R.r);
+    const Y = y => h - R.u - (y - y0) / (y1 - y0) * (h - R.o - R.u);
+    ctx.font = `${fs(13)}px ${css("--schrift")}`; ctx.lineWidth = 1;
+    const tx = teilung(x0, x1, Math.max(3, Math.floor(b / 90))), ty = teilung(y0, y1, Math.max(3, Math.floor(h / 55)));
+    ctx.strokeStyle = "#e3e7ec"; ctx.fillStyle = "#5a6675";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const v of tx.t) { ctx.beginPath(); ctx.moveTo(X(v), R.o); ctx.lineTo(X(v), h - R.u); ctx.stroke();
+                            ctx.fillText(fmt(v, tx.stellen), X(v), h - R.u + 5); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const v of ty.t) { ctx.beginPath(); ctx.moveTo(R.l, Y(v)); ctx.lineTo(b - R.r, Y(v)); ctx.stroke();
+                            ctx.fillText(fmt(v, ty.stellen), R.l - 6, Y(v)); }
+    // Achsen (Nulllinie hervorheben)
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const yNull = (y0 < 0 && y1 > 0) ? Y(0) : h - R.u;
+    ctx.moveTo(R.l, yNull); ctx.lineTo(b - R.r, yNull); ctx.moveTo(R.l, R.o); ctx.lineTo(R.l, h - R.u); ctx.stroke();
+    ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${o.xName} in ${o.xEinheit}`, b - R.r, h - 4);
+    ctx.save(); ctx.translate(14, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+    const yText = o.yName ? (o.yEinheit ? `${o.yName} in ${o.yEinheit}` : o.yName) : sicht.map(r => r.achse).join(",  ");
+    ctx.fillText(yText, 0, 0); ctx.restore();
+    // Kurven
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    for (const r of sicht) {
+      ctx.strokeStyle = r.farbe; ctx.lineWidth = 2.5; ctx.beginPath(); let an = false;
+      for (const [x, y] of r.d) { if (x < x0 - 1e-9) continue; an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+      ctx.stroke();
+      if (r.d.length) { const [x, y] = r.d[r.d.length - 1]; ctx.fillStyle = r.farbe;
+                        ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  /** Knöpfe zum Ein-/Ausblenden der Kurven in ein Element einfügen */
+  auswahl(el) {
+    el.innerHTML = "";
+    for (const [id, r] of this.reihen) {
+      const k = document.createElement("button");
+      k.innerHTML = `<span style="color:${r.farbe}">━━</span> ${r.name}`;
+      k.classList.toggle("aktiv", r.sichtbar);
+      k.onclick = () => { r.sichtbar = !r.sichtbar; k.classList.toggle("aktiv", r.sichtbar); this.zeichnen(); };
+      el.appendChild(k);
+    }
+  }
+}
+
+/**
+ * Energiebalken. Beispiel:
+ *   const eb = new Balken(canvas, [{id:"pot", name:"E_Spann", farbe:css("--e-pot")}, ...], "J");
+ *   eb.zeichnen({pot: 0.2, kin: 0.1, ges: 0.3}, maxWert);
+ */
+class Balken {
+  constructor(canvas, arten, einheit = "J") { this.arten = arten; this.einheit = einheit;
+    this.lw = leinwand(canvas, () => this.letzte && this.zeichnen(...this.letzte)); }
+  zeichnen(werte, max) {
+    this.letzte = [werte, max];
+    const { ctx, b, h } = this.lw, n = this.arten.length, R = { l: 10, r: 10, o: 26, u: 30 };
+    ctx.clearRect(0, 0, b, h);
+    const bw = (b - R.l - R.r) / n, H = h - R.o - R.u, sk = max > 0 ? H / max : 0;
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(R.l, h - R.u); ctx.lineTo(b - R.r, h - R.u); ctx.stroke();
+    this.arten.forEach((a, i) => {
+      const v = Math.max(0, werte[a.id] || 0), x = R.l + i * bw + bw * 0.18, w = bw * 0.64;
+      ctx.fillStyle = a.farbe; ctx.fillRect(x, h - R.u - v * sk, w, v * sk);
+      ctx.font = `600 ${fs(14)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430"; ctx.textAlign = "center";
+      ctx.textBaseline = "top"; ctx.fillText(a.name, x + w / 2, h - R.u + 6);
+      ctx.textBaseline = "bottom"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+      ctx.fillText(fmt(werte[a.id] || 0, a.stellen ?? 2, this.einheit), x + w / 2, Math.max(R.o + 2, h - R.u - v * sk - 4));
+    });
+  }
+}
+
+/** Regler erzeugen. Liefert Objekt mit .wert; ruft beiAenderung(wert) auf. */
+function regler(container, { id, name, min, max, schritt, wert, einheit = "", stellen = 2, beiAenderung }) {
+  const box = document.createElement("div");
+  box.innerHTML = `<label for="r_${id}">${name} <span class="wert" id="w_${id}"></span></label>
+                   <input type="range" id="r_${id}" min="${min}" max="${max}" step="${schritt}" value="${wert}">`;
+  container.appendChild(box);
+  const inp = box.querySelector("input"), anz = box.querySelector(".wert");
+  const r = { get wert() { return parseFloat(inp.value); },
+              setzen(v) { inp.value = v; anz.textContent = fmt(parseFloat(inp.value), stellen, einheit); },
+              sperren(an) { inp.disabled = an; } };
+  r.setzen(wert);
+  inp.addEventListener("input", () => { anz.textContent = fmt(r.wert, stellen, einheit); beiAenderung && beiAenderung(r.wert); });
+  return r;
+}
+
+/** Datei aus der Seite heraus speichern (funktioniert offline) */
+function speichern(name, inhalt, typ) {
+  const a = document.createElement("a");
+  a.href = typeof inhalt === "string" ? URL.createObjectURL(new Blob([inhalt], { type: typ })) : inhalt;
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/** Mehrere Canvas nebeneinander als ein PNG speichern */
+function alsPNG(name, canvasListe) {
+  const b = canvasListe.reduce((s, c) => s + c.width, 0), h = Math.max(...canvasListe.map(c => c.height));
+  const z = document.createElement("canvas"); z.width = b; z.height = h;
+  const ctx = z.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  let x = 0; for (const c of canvasListe) { ctx.drawImage(c, x, 0); x += c.width; }
+  speichern(name, z.toDataURL("image/png"));
+}
+
+/**
+ * Simulationsschleife mit festem Zeitschritt (physikalisch sauber, unabhängig von der Bildrate).
+ *   const lauf = new Schleife({dt: 0.001, schritt: dt => {...}, bild: () => {...}});
+ *   lauf.start(); lauf.pause(); lauf.tempo = 0.2 (Zeitlupe)
+ */
+class Schleife {
+  constructor({ dt, schritt, bild, beiStatus }) {
+    Object.assign(this, { dt, schritt, bild, beiStatus, laeuft: false, tempo: 1, rest: 0, tAlt: 0 });
+    const tick = tJetzt => {
+      if (this.laeuft) {
+        let echt = Math.min(0.1, (tJetzt - this.tAlt) / 1000);   // nach Tab-Wechsel nicht springen
+        this.rest += echt * this.tempo;
+        let n = 0; while (this.rest >= this.dt && n < 20000) { this.schritt(this.dt); this.rest -= this.dt; n++; }
+      }
+      this.tAlt = tJetzt; this.bild(); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  start() { this.laeuft = true; this.beiStatus && this.beiStatus(true); }
+  pause() { this.laeuft = false; this.beiStatus && this.beiStatus(false); }
+  umschalten() { this.laeuft ? this.pause() : this.start(); }
+  einzelschritt(dauer) { this.pause(); const n = Math.round(dauer / this.dt); for (let i = 0; i < n; i++) this.schritt(this.dt); }
+}
+
+/**
+ * Schritt-für-Schritt-Modus zum Besprechen im Plenum.
+ *   schrittmodus([{text:"…", vorbereiten: () => {...}}, ...])
+ */
+function schrittmodus(schritte) {
+  let i = 0; const box = $("schritte");
+  const zeigen = () => { $("schrittNr").textContent = `Schritt ${i + 1} von ${schritte.length}`;
+    $("schrittText").innerHTML = schritte[i].text; schritte[i].vorbereiten && schritte[i].vorbereiten();
+    $("btnZurueck").disabled = i === 0; $("btnWeiter").disabled = i === schritte.length - 1; };
+  $("btnZurueck").onclick = () => { if (i > 0) { i--; zeigen(); } };
+  $("btnWeiter").onclick = () => { if (i < schritte.length - 1) { i++; zeigen(); } };
+  return { an() { box.classList.add("an"); i = 0; zeigen(); }, aus() { box.classList.remove("an"); },
+           get aktiv() { return box.classList.contains("an"); } };
+}
+
+/** Vollbild, Beamer-Ansicht, Tastatur */
+function bedienungEinrichten(lauf, { reset, einzel }) {
+  $("btnVoll").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $("btnGross").onclick = () => { document.body.classList.toggle("gross"); $("btnGross").classList.toggle("aktiv"); };
+  $("btnStart").onclick = () => lauf.umschalten();
+  $("btnReset").onclick = reset;
+  $("btnSchritt").onclick = einzel;
+  $("btnLangsam").onclick = () => { lauf.tempo = lauf.tempo === 1 ? 0.2 : 1;
+    $("btnLangsam").textContent = `Zeitlupe: ${lauf.tempo === 1 ? "aus" : "an (×0,2)"}`;
+    $("btnLangsam").classList.toggle("aktiv", lauf.tempo !== 1); };
+  lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Start"; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    const k = e.key.toLowerCase();
+    if (k === " ") { e.preventDefault(); lauf.umschalten(); }
+    else if (k === "r") reset(); else if (k === "arrowright") einzel();
+    else if (k === "l") $("btnLangsam").click(); else if (k === "g") $("btnGross").click();
+    else if (k === "f") $("btnVoll").click();
+  });
+}
+
+
+/* =====================================================================
+   MODELL – Sprung im Bikepark
+   Flugbahnen in Scheitelpunktform  y = a·(x − d)² + e   (x: Entfernung von der Absprungkante, y: Höhe, in m)
+     Jonas  h(x) = −0,2(x − 2)² + 1,8   (Kante 1 m)
+     Ben    k(x) = −0,2(x − 2)² + 2     = −0,2x² + 0,8x + 1,2  (Kante 1,2 m)
+     Elif   s(x) = −0,25(x − 2)² + 2,25 (Kante 1,25 m)
+   Das Rad fährt die Rampe hoch und bewegt sich in der Luft waagerecht gleichmäßig (Animation, keine Wurfphysik).
+   ===================================================================== */
+const STAPEL_X = 3.5, STAPEL_H = 1.3, LAND0 = 4, LAND1 = 6, VX = 4.5, RAMPE_T = 0.9;
+const BAHNEN = {
+  jonas: { id: "jonas", name: "Jonas", fn: "h", farbe: css("--jonas"), a: -0.2, d: 2, e: 1.8 },
+  ben:   { id: "ben",   name: "Ben",   fn: "k", farbe: css("--ben"),   a: -0.2, d: 2, e: 2 },
+  elif:  { id: "elif",  name: "Elif",  fn: "s", farbe: css("--elif"),  a: -0.25, d: 2, e: 2.25 },
+  eigen: { id: "eigen", name: "Du",    fn: "y", farbe: css("--eigen"), a: -0.2, d: 2, e: 1.8 },
+};
+const hoehe = (B, x) => B.a * (x - B.d) ** 2 + B.e;
+const steigung = (B, x) => 2 * B.a * (x - B.d);
+const nullLinks = B => B.d - Math.sqrt(-B.e / B.a);
+const nullRechts = B => B.d + Math.sqrt(-B.e / B.a);
+const stapel = x => STAPEL_H - 1.732 * Math.abs(x - STAPEL_X);          // Holzstapel: Dreieck mit 60°-Seiten
+function ergebnis(B) {
+  if (hoehe(B, STAPEL_X) < STAPEL_H) return "stapel";
+  const L = nullRechts(B); return L < LAND0 ? "kurz" : L > LAND1 ? "weit" : "gut";
+}
+const ERG_TEXT = { stapel: "Crash am Holzstapel!", kurz: "zu kurz – harte Landung", weit: "zu weit – hinter der Landefläche", gut: "auf der Landefläche ✓" };
+
+/** Rampe: quadratische Bézierkurve vom Boden zur Kante, tangential zur Flugbahn */
+function rampe(B) {
+  const c = hoehe(B, 0), m = Math.max(0.25, steigung(B, 0));
+  const kx = Math.max(-3, -c / m);
+  return { p0: [kx - 1.6, 0], p1: [kx, 0], p2: [0, c] };
+}
+const bez = (R, t) => [0, 1].map(i => (1 - t) ** 2 * R.p0[i] + 2 * (1 - t) * t * R.p1[i] + t * t * R.p2[i]);
+const bezTangente = (R, t) => [0, 1].map(i => 2 * (1 - t) * (R.p1[i] - R.p0[i]) + 2 * t * (R.p2[i] - R.p1[i]));
+
+let modus = "jonas", raeder = [];
+const zeige = { scheitel: false, kante: false, normal: false, stapelMass: false, landung: false, ben: false, elif: false, bahn: false, koord: true };
+const aktiveBahnen = () => modus === "alle" ? [BAHNEN.jonas, BAHNEN.ben, BAHNEN.elif] : [BAHNEN[modus]];
+const fertig = () => raeder.every(r => r.status === "gelandet" || r.status === "crash");
+
+function neuStart() {
+  lauf.pause();
+  raeder = aktiveBahnen().map(B => ({ B, R: rampe(B), t: 0.45, x: 0, y: 0, status: "rampe", spur: [] }));
+  for (const r of raeder) { [r.x, r.y] = bez(r.R, r.t); }
+}
+function radSchritt(r, dt) {
+  if (r.status === "rampe") {
+    r.t += dt / RAMPE_T * 0.55;
+    if (r.t >= 1) { r.t = 1; r.status = "fliegt"; r.x = 0; r.y = hoehe(r.B, 0); r.spur = [[0, r.y]]; }
+    else [r.x, r.y] = bez(r.R, r.t);
+  } else if (r.status === "fliegt") {
+    const xNeu = r.x + VX * dt;
+    if (r.x < STAPEL_X && xNeu >= STAPEL_X && hoehe(r.B, STAPEL_X) < STAPEL_H) {
+      r.x = STAPEL_X - 0.45; r.y = Math.max(0, hoehe(r.B, r.x)); r.status = "crash";
+    } else if (hoehe(r.B, xNeu) <= 0) { r.x = nullRechts(r.B); r.y = 0; r.status = "gelandet"; }
+    else { r.x = xNeu; r.y = hoehe(r.B, xNeu); }
+    const l = r.spur[r.spur.length - 1];
+    if (Math.abs(r.x - l[0]) > 0.03 || r.status !== "fliegt") r.spur.push([r.x, r.y]);
+  }
+}
+function physikSchritt(dt) { for (const r of raeder) radSchritt(r, dt); if (fertig() && lauf.laeuft) lauf.pause(); }
+function radBis(X) {
+  neuStart();
+  for (const r of raeder) { let n = 0;
+    while (r.status !== "gelandet" && r.status !== "crash" && (r.status === "rampe" || r.x < X - 1e-9) && n++ < 100000)
+      radSchritt(r, r.status === "fliegt" ? Math.min(0.001, Math.max(1e-6, (X - r.x) / VX)) : 0.002); }
+}
+
+/* ---------- Szene ---------- */
+const szene = leinwand($("szene"), () => szeneZeichnen());
+const XMIN = -3.9, XMAX = 7.4, YMAX = 2.75;
+function koordinaten() {
+  const { b, h } = szene, unten = fs(36), oben = 8;
+  const sk = Math.min((b - 16) / (XMAX - XMIN), (h - unten - oben) / YMAX);
+  const ox = (b - (XMAX - XMIN) * sk) / 2 - XMIN * sk, boden = h - unten;
+  return { sk, X: x => ox + x * sk, Y: y => boden - y * sk, boden };
+}
+function punkt(ctx, K, x, y, farbe, text, { dx = 0, dy = -18, ausrichtung = "center", r = 5 } = {}) {
+  ctx.save(); ctx.fillStyle = farbe; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.X(x), K.Y(y), r, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+  if (text) beschriftung(ctx, text, K.X(x) + dx, K.Y(y) + dy, { groesse: 14, fett: true, farbe, ausrichtung });
+}
+function kreuz(ctx, K, x, y, farbe, text, dy = -18, dx = 0) {
+  const px = K.X(x), py = K.Y(y), s = 7;
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px - s, py - s); ctx.lineTo(px + s, py + s); ctx.moveTo(px - s, py + s); ctx.lineTo(px + s, py - s); ctx.stroke();
+  ctx.restore(); beschriftung(ctx, text, px + dx, py + dy, { groesse: 14, fett: true, farbe, ausrichtung: dx ? "left" : "center" });
+}
+function gestrichelt(ctx, x1, y1, x2, y2, farbe, breite = 1.5) {
+  ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = farbe; ctx.lineWidth = breite;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function kurve(ctx, K, B, x0, x1, farbe, breite, strich) {
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = breite; if (strich) ctx.setLineDash(strich);
+  ctx.beginPath(); let an = false;
+  for (let i = 0; i <= 200; i++) { const x = x0 + (x1 - x0) * i / 200, y = hoehe(B, x);
+    if (y < -0.01) { an = false; continue; }
+    an ? ctx.lineTo(K.X(x), K.Y(y)) : ctx.moveTo(K.X(x), K.Y(y)); an = true; }
+  ctx.stroke(); ctx.restore();
+}
+function rampeZeichnen(ctx, K, R, hell) {
+  ctx.save(); ctx.beginPath(); ctx.moveTo(K.X(R.p0[0]), K.Y(0));
+  for (let i = 1; i <= 40; i++) { const [x, y] = bez(R, i / 40); ctx.lineTo(K.X(x), K.Y(y)); }
+  ctx.lineTo(K.X(R.p2[1] * 0.45), K.Y(0)); ctx.closePath();
+  ctx.fillStyle = hell ? "rgba(141,110,79,.35)" : "#9c7650"; ctx.fill();
+  ctx.strokeStyle = hell ? "rgba(90,60,30,.4)" : "#6d4c2f"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+function stapelZeichnen(ctx, K) {
+  const d = 0.26, reihen = 5;
+  for (let rr = 0; rr < reihen; rr++) {
+    const n = reihen - rr, y = d / 2 + rr * d * 0.866;
+    for (let i = 0; i < n; i++) {
+      const x = STAPEL_X + (i - (n - 1) / 2) * d;
+      ctx.fillStyle = "#b5835a"; ctx.strokeStyle = "#6d4c2f"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(K.X(x), K.Y(y), d / 2 * K.sk, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = "rgba(109,76,47,.6)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(K.X(x), K.Y(y), d / 4 * K.sk, 0, 7); ctx.stroke();
+    }
+  }
+  beschriftung(ctx, "Holzstapel 1,30 m", K.X(STAPEL_X - 0.75), K.Y(1.05), { groesse: 12, farbe: "#6d4c2f", ausrichtung: "right" });
+}
+function biker(ctx, K, r) {
+  const B = r.B;
+  let wink;
+  if (r.status === "rampe") { const [tx, ty] = bezTangente(r.R, r.t); wink = Math.atan2(ty, tx); }
+  else if (r.status === "fliegt") wink = Math.atan(steigung(B, r.x)) * 0.85;
+  else if (r.status === "gelandet") wink = 0;
+  else wink = -0.9;
+  const s = K.sk * 0.6, rad = 0.33 * s, achs = 0.52 * s;           // verkleinert gezeichnet
+  ctx.save(); ctx.translate(K.X(r.x), K.Y(r.y)); ctx.rotate(-wink); ctx.translate(0, -rad);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "#222"; ctx.lineWidth = Math.max(2.5, s * 0.06);
+  for (const x of [-achs, achs]) { ctx.beginPath(); ctx.arc(x, 0, rad, 0, 7); ctx.stroke();
+    ctx.strokeStyle = "#999"; ctx.lineWidth = 1; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.moveTo(x, 0);
+      ctx.lineTo(x + rad * Math.cos(k), rad * Math.sin(k)); ctx.stroke(); } ctx.strokeStyle = "#222"; ctx.lineWidth = Math.max(2.5, s * 0.06); }
+  ctx.strokeStyle = B.farbe; ctx.lineWidth = Math.max(3, s * 0.07);
+  const tret = [-0.05 * s, 0.02 * s], sattel = [-0.22 * s, -0.62 * s], lenk = [0.36 * s, -0.68 * s];
+  ctx.beginPath(); ctx.moveTo(-achs, 0); ctx.lineTo(...tret); ctx.lineTo(...sattel); ctx.closePath();
+  ctx.moveTo(...tret); ctx.lineTo(0.3 * s, -0.55 * s); ctx.lineTo(...sattel); ctx.moveTo(0.3 * s, -0.55 * s); ctx.lineTo(achs, 0);
+  ctx.moveTo(0.3 * s, -0.55 * s); ctx.lineTo(...lenk); ctx.stroke();
+  // Fahrer (stehend in den Pedalen)
+  const huefte = [-0.12 * s, -0.95 * s], schulter = [0.12 * s, -1.38 * s], kopf = [0.2 * s, -1.56 * s];
+  ctx.strokeStyle = "#37474f"; ctx.lineWidth = Math.max(4, s * 0.1);
+  ctx.beginPath(); ctx.moveTo(...huefte); ctx.lineTo(0.08 * s, -0.5 * s); ctx.lineTo(0.02 * s, -0.02 * s);
+  ctx.moveTo(...huefte); ctx.lineTo(-0.22 * s, -0.48 * s); ctx.lineTo(-0.1 * s, 0.03 * s); ctx.stroke();
+  ctx.strokeStyle = B.farbe; ctx.lineWidth = Math.max(6, s * 0.17);
+  ctx.beginPath(); ctx.moveTo(...huefte); ctx.lineTo(...schulter); ctx.stroke();
+  ctx.strokeStyle = "#d7a77f"; ctx.lineWidth = Math.max(3, s * 0.06);
+  ctx.beginPath(); ctx.moveTo(...schulter); ctx.lineTo(0.3 * s, -1.05 * s); ctx.lineTo(...lenk); ctx.stroke();
+  ctx.fillStyle = "#d7a77f"; ctx.beginPath(); ctx.arc(...kopf, 0.11 * s, 0, 7); ctx.fill();
+  ctx.fillStyle = B.farbe; ctx.beginPath(); ctx.arc(kopf[0], kopf[1] - 0.02 * s, 0.13 * s, Math.PI * 1.05, Math.PI * 2.1); ctx.fill();
+  ctx.restore();
+}
+
+function szeneZeichnen() {
+  const { ctx, b, h } = szene, K = koordinaten();
+  ctx.clearRect(0, 0, b, h);
+  const g = ctx.createLinearGradient(0, 0, 0, K.boden); g.addColorStop(0, "#cfe6f7"); g.addColorStop(1, "#f1f8fc");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, b, K.boden);
+  // Bäume im Hintergrund
+  for (const [x, hh] of [[-3.3, 2.2], [6.6, 2.4], [-1.6, 1.6]]) {
+    ctx.fillStyle = "#8d6e63"; ctx.fillRect(K.X(x) - 3, K.Y(0.6), 6, 0.6 * K.sk);
+    ctx.fillStyle = "rgba(76,140,74,.35)"; ctx.beginPath(); ctx.moveTo(K.X(x), K.Y(hh)); ctx.lineTo(K.X(x - 0.55), K.Y(0.5)); ctx.lineTo(K.X(x + 0.55), K.Y(0.5)); ctx.fill(); }
+  ctx.fillStyle = "#7a5b3e"; ctx.fillRect(0, K.boden, b, h - K.boden);
+  ctx.fillStyle = "#8bc34a"; ctx.fillRect(0, K.boden - 2, b, 4);
+  // Landefläche
+  ctx.fillStyle = "#5d3f2a"; ctx.fillRect(K.X(LAND0), K.boden - 5, (LAND1 - LAND0) * K.sk, 9);
+  ctx.fillStyle = "#a1887f"; for (let x = LAND0 + 0.05; x < LAND1; x += 0.13) ctx.fillRect(K.X(x), K.boden - 5 + ((x * 37) % 4), 4, 2);
+  beschriftung(ctx, "Landefläche (4 m bis 6 m)", K.X(5), K.boden + fs(29), { groesse: 12, fett: true, farbe: "#f3e5d8", hintergrund: false });
+  // Rampen
+  const R0 = raeder.length ? raeder[0].R : rampe(BAHNEN.jonas);
+  for (const r of raeder.slice(1)) rampeZeichnen(ctx, K, r.R, true);
+  rampeZeichnen(ctx, K, R0, false);
+  stapelZeichnen(ctx, K);
+  // Koordinatensystem
+  if (zeige.koord) {
+    ctx.save(); ctx.strokeStyle = "rgba(31,92,153,.13)"; ctx.lineWidth = 1;
+    for (let x = Math.ceil(XMIN); x <= XMAX; x++) { ctx.beginPath(); ctx.moveTo(K.X(x), K.Y(0)); ctx.lineTo(K.X(x), K.Y(YMAX - 0.05)); ctx.stroke(); }
+    for (let y = 0.5; y < YMAX; y += 0.5) { ctx.beginPath(); ctx.moveTo(K.X(XMIN), K.Y(y)); ctx.lineTo(K.X(XMAX), K.Y(y)); ctx.stroke(); }
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(K.X(0), K.Y(0)); ctx.lineTo(K.X(0), K.Y(YMAX - 0.05)); ctx.stroke();
+    pfeil(ctx, K.X(0), K.Y(YMAX - 0.4), K.X(0), K.Y(YMAX - 0.02), "#1b2430", 1.5, 9);
+    ctx.fillStyle = "#1b2430"; ctx.font = `${fs(12)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let y = 0.5; y < YMAX - 0.2; y += 0.5) ctx.fillText(fmt(y, 1), K.X(0) - 5, K.Y(y));
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let x = Math.ceil(XMIN); x <= XMAX - 0.6; x++) ctx.fillText(String(x).replace("-", "−"), K.X(x), K.boden + 8);
+    ctx.font = `600 ${fs(13)}px ${css("--schrift")}`; ctx.textAlign = "right";
+    ctx.fillText("x in m", K.X(XMAX) - 2, K.boden + 8);
+    ctx.textAlign = "left"; ctx.fillText("Höhe in m", K.X(0) + 6, K.Y(YMAX) + 2);
+    ctx.restore();
+  }
+  // Hilfen der Schritte
+  const J = BAHNEN.jonas;
+  if (zeige.bahn) for (const B of aktiveBahnen()) kurve(ctx, K, B, 0, nullRechts(B), B.farbe + "88", 2, [7, 6]);
+  if (zeige.scheitel) {
+    gestrichelt(ctx, K.X(0), K.Y(J.e), K.X(J.d), K.Y(J.e), css("--jonas"), 1.5);
+    gestrichelt(ctx, K.X(J.d), K.Y(0), K.X(J.d), K.Y(J.e), css("--hilf"), 2);
+    punkt(ctx, K, J.d, J.e, css("--jonas"), "S(2 | 1,8)", { dx: -10, dy: 20, ausrichtung: "right", r: 6 });
+    beschriftung(ctx, "2 m", K.X(1), K.Y(0.15), { groesse: 13, fett: true, farbe: css("--hilf") });
+    beschriftung(ctx, "1,80 m", K.X(J.d) + 8, K.Y(0.9), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  }
+  if (zeige.kante) {
+    pfeil(ctx, K.X(0) + 12, K.Y(0), K.X(0) + 12, K.Y(1) + 4, css("--hilf"), 2.5, 9);
+    beschriftung(ctx, zeige.normal ? "h(0) = c = 1" : "h(0) = 1 m", K.X(0) + 18, K.Y(0.5), { groesse: 14, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+    punkt(ctx, K, 0, 1, css("--jonas"), "(0 | 1)", { dx: -10, dy: -12, ausrichtung: "right" });
+  }
+  if (zeige.stapelMass) {
+    const B = raeder[0].B, yb = hoehe(B, STAPEL_X);
+    gestrichelt(ctx, K.X(STAPEL_X) - 40, K.Y(STAPEL_H), K.X(STAPEL_X), K.Y(STAPEL_H), css("--hilf"), 2);
+    gestrichelt(ctx, K.X(STAPEL_X) - 40, K.Y(yb), K.X(STAPEL_X), K.Y(yb), B.farbe, 2);
+    pfeil(ctx, K.X(STAPEL_X) - 34, K.Y(yb) - 26, K.X(STAPEL_X) - 34, K.Y(yb), css("--hilf"), 2, 7);
+    pfeil(ctx, K.X(STAPEL_X) - 34, K.Y(STAPEL_H) + 26, K.X(STAPEL_X) - 34, K.Y(STAPEL_H), css("--hilf"), 2, 7);
+    beschriftung(ctx, `${B.fn}(3,5) = ${fmt(yb, 2)} m > 1,30 m`, K.X(STAPEL_X - 0.6) - 10, K.Y(yb) - 26, { groesse: 14, fett: true, farbe: B.farbe, ausrichtung: "right" });
+    beschriftung(ctx, `${fmt((yb - STAPEL_H) * 100, 0)} cm`, K.X(STAPEL_X) - 44, K.Y((yb + STAPEL_H) / 2), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "right" });
+  }
+  if (zeige.landung) {
+    const B = raeder[0].B;
+    kurve(ctx, K, B, nullLinks(B), 0, css("--hilf"), 2, [6, 5]);
+    punkt(ctx, K, nullLinks(B), 0, css("--hilf"), "x = −1 (entfällt)", { dy: -16 });
+    punkt(ctx, K, nullRechts(B), 0, B.farbe, `x = ${fmt(nullRechts(B), 0)}`, { dy: 18 });
+  }
+  if (zeige.ben) {
+    kreuz(ctx, K, 0, 1.2, css("--ben"), "A(0 | 1,2)", 18, 10);
+    kreuz(ctx, K, 1, 1.8, css("--ben"), "B(1 | 1,8)", -20);
+    kreuz(ctx, K, 2, 2, css("--ben"), "C(2 | 2)", -20);
+  }
+  if (zeige.elif) {
+    punkt(ctx, K, 2, 2.25, css("--elif"), "S(2 | 2,25)", { dy: -20, r: 6 });
+    punkt(ctx, K, 0, 1.25, css("--elif"), "P(0 | 1,25)", { dx: 12, dy: 16, ausrichtung: "left", r: 6 });
+  }
+  // Spuren und Biker
+  for (const r of raeder) {
+    if (!r.spur.length) continue;
+    ctx.save(); ctx.strokeStyle = r.B.farbe; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.beginPath();
+    r.spur.forEach(([x, y], i) => i ? ctx.lineTo(K.X(x), K.Y(y)) : ctx.moveTo(K.X(x), K.Y(y)));
+    if (r.status === "fliegt") ctx.lineTo(K.X(r.x), K.Y(r.y)); ctx.stroke(); ctx.restore();
+  }
+  raeder.forEach((r, i) => {
+    biker(ctx, K, r);
+    if (r.status === "gelandet" || r.status === "crash") {
+      const erg = ergebnis(r.B);
+      const txt = erg === "stapel" ? `${r.B.name}: ${ERG_TEXT.stapel}` : `${r.B.name}: ${fmt(nullRechts(r.B), 2, "m")} – ${ERG_TEXT[erg]}`;
+      beschriftung(ctx, txt, Math.min(K.X(Math.max(r.x, 4.5)), b - 190), fs(18) + i * fs(24), { groesse: 15, fett: true, farbe: r.B.farbe });
+    }
+  });
+}
+
+/* ---------- Messwerte ---------- */
+function messwerteZeigen() {
+  let s = "";
+  for (const r of raeder) {
+    const B = r.B, vorbei = r.status !== "rampe" && (r.x >= STAPEL_X || r.status === "crash");
+    const kopf = modus === "alle" ? `<span style="color:${B.farbe};font-weight:600">${B.name}:</span> ` : "";
+    s += `<div>${kopf}<b>x</b> = ${r.status === "rampe" ? "Rampe" : fmt(r.x, 2, "m")}</div>
+          <div>${kopf}<b>Höhe</b> = ${fmt(Math.max(0, r.y), 2, "m")}</div>
+          <div>${kopf}Kante: ${fmt(hoehe(B, 0), 2, "m")}</div>
+          <div>${kopf}am Stapel: ${vorbei ? (r.status === "crash" ? "<b>zu tief</b> (" + fmt(hoehe(B, STAPEL_X), 2, "m") + ")" : fmt(hoehe(B, STAPEL_X), 2, "m")) : "…"}</div>
+          <div>${kopf}Landung: ${r.status === "gelandet" ? fmt(nullRechts(B), 2, "m") : r.status === "crash" ? "–" : "…"}</div>`;
+  }
+  $("messwerte").innerHTML = s;
+}
+
+/* ---------- Verwandlung: Normalparabel → h ---------- */
+const graph = leinwand($("graph"), () => graphZeichnen());
+let wandel = 0, wandelLaeuft = false, wandelHalt = 0;
+const GX0 = -4, GX1 = 8, GY0 = -4, GY1 = 5;
+function wandelParameter(s) {
+  const k = s <= 1 ? 1 - 2 * s : -Math.exp(Math.log(0.2) * Math.min(1, s - 1));
+  return { k, d: s > 2 ? 2 * Math.min(1, s - 2) : 0, e: s > 3 ? 1.8 * Math.min(1, s - 3) : 0 };
+}
+function zahl(v, n = 2) { const t = fmt(Math.abs(v) < 1e-9 ? 0 : v, n).replace("-", "−"); return t.includes(",") ? t.replace(/0+$/, "").replace(/,$/, "") : t; }
+function gleichungText(s) {
+  const { k, d, e } = wandelParameter(s), rot = t => `<span class="hilf">${t}</span>`;
+  const kT = Math.abs(k - 1) < 1e-6 ? "" : Math.abs(k + 1) < 1e-6 ? "−" : zahl(k, Math.abs(k) < 0.1 ? 3 : 2) + "·";
+  const innen = d > 1e-6 ? `(<i>x</i> − ${rot(zahl(d, 1))})²` : `<i>x</i>²`;
+  let txt = `<i>y</i> = ${kT ? rot(kT) : ""}${innen}${e > 1e-6 ? " + " + rot(zahl(e, 1)) : ""}`;
+  if (s >= 3.999) txt += ` &nbsp;=&nbsp; <span class="jonas"><i>h</i>(<i>x</i>)</span> ✓`;
+  return txt;
+}
+function graphZeichnen() {
+  const { ctx, b, h } = graph, R = { l: 30, r: 12, o: 12, u: 22 };
+  ctx.clearRect(0, 0, b, h);
+  const X = x => R.l + (x - GX0) / (GX1 - GX0) * (b - R.l - R.r), Y = y => h - R.u - (y - GY0) / (GY1 - GY0) * (h - R.o - R.u);
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1; ctx.font = `${fs(12)}px ${css("--schrift")}`; ctx.fillStyle = "#5a6675";
+  for (let x = GX0; x <= GX1; x++) { ctx.beginPath(); ctx.moveTo(X(x), Y(GY0)); ctx.lineTo(X(x), Y(GY1)); ctx.stroke(); }
+  for (let y = GY0; y <= GY1; y++) { ctx.beginPath(); ctx.moveTo(X(GX0), Y(y)); ctx.lineTo(X(GX1), Y(y)); ctx.stroke(); }
+  ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(X(GX0), Y(0)); ctx.lineTo(X(GX1), Y(0)); ctx.moveTo(X(0), Y(GY0)); ctx.lineTo(X(0), Y(GY1)); ctx.stroke();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let x = -4; x <= GX1; x += 2) if (x) ctx.fillText(String(x).replace("-", "−"), X(x), Y(0) + 3);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let y = GY0; y <= GY1; y += 2) if (y) ctx.fillText(String(y).replace("-", "−"), X(0) - 4, Y(y));
+  const zeichne = (fn, farbe, breite, strich) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    ctx.strokeStyle = farbe; ctx.lineWidth = breite; if (strich) ctx.setLineDash(strich);
+    ctx.beginPath(); let an = false;
+    for (let i = 0; i <= 400; i++) { const x = GX0 + (GX1 - GX0) * i / 400, y = fn(x);
+      if (y < GY0 - 1 || y > GY1 + 1) { an = false; continue; }
+      an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+    ctx.stroke(); ctx.restore();
+  };
+  zeichne(x => x * x, css("--norm"), 2, [5, 4]);
+  zeichne(x => hoehe(BAHNEN.jonas, x), css("--jonas") + "66", 3, [8, 6]);
+  const { k, d, e } = wandelParameter(wandel);
+  zeichne(x => k * (x - d) ** 2 + e, css("--hilf"), 3.5);
+  ctx.fillStyle = css("--hilf"); ctx.beginPath(); ctx.arc(X(d), Y(e), 5, 0, 7); ctx.fill();
+  beschriftung(ctx, `S(${zahl(d, 1)} | ${zahl(e, 1)})`, X(d) + 8, Y(e) + (k > 0 ? 14 : -14), { groesse: 13, fett: true, farbe: css("--hilf"), ausrichtung: "left" });
+  if (wandel < 0.05) beschriftung(ctx, "Normalparabel", X(1.6), Y(4.4), { groesse: 12, farbe: "#5a6675", ausrichtung: "left" });
+  beschriftung(ctx, "Jonas' Flugbahn h", X(4.6), Y(2.4), { groesse: 12, farbe: css("--jonas"), ausrichtung: "left" });
+}
+function wandelAnzeigen() {
+  $("gleichung").innerHTML = gleichungText(wandel);
+  [...$("wandelListe").children].forEach((li, i) => {
+    li.classList.toggle("fertig", wandel >= i + 1 - 1e-6);
+    li.classList.toggle("jetzt", wandel > i + 1e-6 && wandel < i + 1 - 1e-6);
+  });
+  RW.setzen(wandel);
+}
+function wandelTick(dt) {
+  if (!wandelLaeuft) return;
+  if (wandelHalt > 0) { wandelHalt -= dt; return; }
+  const alt = wandel; wandel = Math.min(4, wandel + 0.45 * dt);
+  if (Math.floor(alt + 1e-9) !== Math.floor(wandel + 1e-9)) { wandel = Math.round(wandel); wandelHalt = 0.9; }
+  if (wandel >= 4) { wandel = 4; wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; }
+}
+function wandelStart() { if (wandel >= 4) wandel = 0; wandelLaeuft = true; wandelHalt = wandel === 0 ? 0.6 : 0; $("btnWandel").textContent = "❚❚ Pause"; }
+const wandelStopp = () => { wandelLaeuft = false; $("btnWandel").textContent = "▶ Verwandlung abspielen"; };
+const RW = regler($("wandelRegler"), { id: "wandel", name: "Schritt der Verwandlung", min: 0, max: 4, schritt: 0.01, wert: 0,
+  einheit: "von 4", stellen: 1, beiAenderung: v => { wandel = v; wandelStopp(); } });
+$("btnWandel").onclick = () => wandelLaeuft ? wandelStopp() : wandelStart();
+$("btnWandelReset").onclick = () => { wandel = 0; wandelStopp(); };
+
+/* ---------- Eigener Sprung und Auswahl ---------- */
+const R = {}, E = BAHNEN.eigen; E.c = 1; E.d = 2; E.e = 1.8;
+function eigenAktualisieren() {
+  if (E.e < E.c + 0.1) { E.e = Math.round((E.c + 0.1) * 100) / 100; R.e.setzen(E.e); }
+  E.a = (E.c - E.e) / (E.d * E.d);
+  $("eigenGl").innerHTML = `<span style="color:var(--eigen);font-weight:600"><i>y</i> = ${fmt(E.a, 3).replace("-", "−")}·(<i>x</i> − ${fmt(E.d, 1)})² + ${fmt(E.e, 2)}</span>
+     &nbsp; <span class="klein">(<i>a</i> wird so berechnet, dass die Parabel durch die Kante (0 | ${fmt(E.c, 2)}) geht)</span>`;
+  if (modus === "eigen") neuStart();
+}
+R.c = regler($("regler"), { id: "c", name: "Höhe der Kante c", min: 0.5, max: 1.6, schritt: 0.05, wert: E.c, einheit: "m",
+  beiAenderung: v => { E.c = v; eigenAktualisieren(); } });
+R.d = regler($("regler"), { id: "d", name: "Höchster Punkt bei x = d", min: 1, max: 3.5, schritt: 0.1, wert: E.d, einheit: "m", stellen: 1,
+  beiAenderung: v => { E.d = v; eigenAktualisieren(); } });
+R.e = regler($("regler"), { id: "e", name: "Größte Höhe e", min: 0.8, max: 2.6, schritt: 0.05, wert: E.e, einheit: "m",
+  beiAenderung: v => { E.e = v; eigenAktualisieren(); } });
+
+const knoepfe = {};
+function modusSetzen(m) { modus = m; for (const id in knoepfe) knoepfe[id].classList.toggle("aktiv", id === m);
+  $("eigenBox").style.display = m === "eigen" ? "block" : "none"; neuStart(); }
+for (const [id, text] of [["jonas", "Jonas: h(x) = −0,2(x − 2)² + 1,8"], ["ben", "Ben: k(x) = −0,2x² + 0,8x + 1,2"],
+                          ["elif", "Elif: s(x) = −0,25(x − 2)² + 2,25"], ["alle", "Alle vergleichen"], ["eigen", "Eigener Sprung"]]) {
+  const k = document.createElement("button"); k.textContent = text; knoepfe[id] = k;
+  k.onclick = () => { schritte.aus(); hilfenAus(); modusSetzen(id); };
+  $("presets").appendChild(k);
+}
+function hilfenAus() { Object.assign(zeige, { scheitel: false, kante: false, normal: false, stapelMass: false, landung: false, ben: false, elif: false }); }
+$("btnKoord").onclick = () => { zeige.koord = !zeige.koord; $("btnKoord").classList.toggle("aktiv", zeige.koord); };
+$("btnBahn").onclick = () => { zeige.bahn = !zeige.bahn; $("btnBahn").classList.toggle("aktiv", zeige.bahn); };
+
+/* ---------- Schritt für Schritt: Aufgabe a) bis g) ---------- */
+const rr = t => `<span class="rechnung">${t}</span>`;
+function bereit(m) { hilfenAus(); modusSetzen(m); }
+const schritte = schrittmodus([
+  { text: `<b>Die Situation.</b> Jonas springt mit dem Mountainbike über die Rampe. Die Flugbahn der Reifen:
+     ${rr("<i>h</i>(<i>x</i>) = −0,2·(<i>x</i> − 2)² + 1,8")}
+     <i>x</i>: Entfernung von der Absprungkante, <i>h</i>(<i>x</i>): Höhe über dem Boden (in m). Drücke <b>▶ Sprung</b>.`,
+    vorbereiten: () => bereit("jonas") },
+  { text: `<b>a) Der Scheitelpunkt.</b> In der Scheitelpunktform <i>a</i>·(<i>x</i> − <span class="hilf"><i>d</i></span>)² + <span class="hilf"><i>e</i></span> liest man ihn direkt ab:
+     ${rr("−0,2·(<i>x</i> − <span class='hilf'>2</span>)² + <span class='hilf'>1,8</span> &nbsp;→&nbsp; <b>S(2 | 1,8)</b>")}
+     2 m hinter der Kante ist Jonas am höchsten: <b>1,80 m</b>. Rechts siehst du, wie die Zahlen die Normalparabel verschieben.`,
+    vorbereiten: () => { bereit("jonas"); radBis(2); zeige.scheitel = true; wandel = 0; wandelStart(); } },
+  { text: `<b>b) Höhe der Absprungkante.</b> Die Kante liegt bei <i>x</i> = 0:
+     ${rr("<i>h</i>(0) = −0,2·(0 − 2)² + 1,8 = −0,2·4 + 1,8 = −0,8 + 1,8 = <b>1</b>")}
+     Die Absprungkante ist <b>1 m</b> hoch. Achtung: (0 − 2)² = 4, das Quadrat zuerst!`,
+    vorbereiten: () => { bereit("jonas"); radBis(0); zeige.kante = true; } },
+  { text: `<b>c) Normalform.</b> Ausmultiplizieren mit der 2. binomischen Formel:
+     ${rr("<i>h</i>(<i>x</i>) = −0,2·(<i>x</i>² − 4<i>x</i> + 4) + 1,8<br>= −0,2<i>x</i>² + 0,8<i>x</i> − 0,8 + 1,8 = <b>−0,2<i>x</i>² + 0,8<i>x</i> + 1</b>")}
+     Die Kantenhöhe aus b) ist das absolute Glied: <span class="hilf"><i>c</i> = 1 = <i>h</i>(0)</span>.`,
+    vorbereiten: () => { bereit("jonas"); radBis(0); zeige.kante = true; zeige.normal = true; } },
+  { text: `<b>d) Der Holzstapel.</b> 3,50 m hinter der Kante liegt ein 1,30 m hoher Holzstapel:
+     ${rr("<i>h</i>(3,5) = −0,2·(3,5 − 2)² + 1,8 = −0,2·2,25 + 1,8 = −0,45 + 1,8 = <b>1,35</b>")}
+     1,35 m &gt; 1,30 m: Jonas springt <b>knapp</b> darüber, nur 5 cm Abstand.`,
+    vorbereiten: () => { bereit("jonas"); radBis(3.5); zeige.stapelMass = true; } },
+  { text: `<b>e) Die Landung.</b> Am Boden ist die Höhe 0:
+     ${rr("−0,2·(<i>x</i> − 2)² + 1,8 = 0 &nbsp;| −1,8 &nbsp;| : (−0,2)<br>(<i>x</i> − 2)² = 9 &nbsp;→&nbsp; <i>x</i> − 2 = 3 &nbsp;oder&nbsp; <i>x</i> − 2 = −3<br><i>x</i>₁ = <b>5</b>, &nbsp; <i>x</i>₂ = −1 (entfällt, vor der Kante)")}
+     4 ≤ 5 ≤ 6: Jonas landet <b>auf der Landefläche</b>.`,
+    vorbereiten: () => { bereit("jonas"); radBis(99); zeige.landung = true; } },
+  { text: `<b>f) Bens Sprung (1).</b> Videoanalyse: <span class="ben">A(0 | 1,2), B(1 | 1,8), C(2 | 2)</span>. Einsetzen in <i>k</i>(<i>x</i>) = <i>ax</i>² + <i>bx</i> + <i>c</i>:
+     ${rr("A: <i>c</i> = 1,2 &nbsp;&nbsp; B: <i>a</i> + <i>b</i> = 0,6 (II) &nbsp;&nbsp; C: 4<i>a</i> + 2<i>b</i> = 0,8 (III)<br>(III) − 2·(II): 2<i>a</i> = −0,4 &nbsp;→&nbsp; <i>a</i> = −0,2; &nbsp; in (II): <i>b</i> = 0,8")}
+     <b class="ben"><i>k</i>(<i>x</i>) = −0,2<i>x</i>² + 0,8<i>x</i> + 1,2</b>`,
+    vorbereiten: () => { bereit("ben"); radBis(0); zeige.ben = true; } },
+  { text: `<b>f) Bens Sprung (2).</b> Am Holzstapel:
+     ${rr("<i>k</i>(3,5) = −0,2·12,25 + 0,8·3,5 + 1,2 = −2,45 + 2,8 + 1,2 = <b>1,55</b>")}
+     1,55 m &gt; 1,30 m: Ben springt über den Holzstapel. Seine Rampe ist 20 cm höher – die ganze Parabel liegt 20 cm höher.`,
+    vorbereiten: () => { bereit("ben"); zeige.ben = true; radBis(3.5); zeige.stapelMass = true; } },
+  { text: `<b>g) Elifs Sprung (1).</b> Höchster Punkt = Scheitelpunkt <span class="elif">S(2 | 2,25)</span>, Kante <span class="elif">P(0 | 1,25)</span>:
+     ${rr("<i>s</i>(<i>x</i>) = <i>a</i>·(<i>x</i> − 2)² + 2,25<br>P einsetzen: <i>a</i>·(0 − 2)² + 2,25 = 1,25 &nbsp;→&nbsp; 4<i>a</i> = −1 &nbsp;→&nbsp; <i>a</i> = −0,25")}
+     <b class="elif"><i>s</i>(<i>x</i>) = −0,25·(<i>x</i> − 2)² + 2,25</b>`,
+    vorbereiten: () => { bereit("elif"); radBis(2); zeige.elif = true; } },
+  { text: `<b>g) Elifs Sprung (2).</b> Landung:
+     ${rr("−0,25·(<i>x</i> − 2)² + 2,25 = 0 &nbsp;→&nbsp; (<i>x</i> − 2)² = 9 &nbsp;→&nbsp; <i>x</i> = 5 &nbsp;(<i>x</i> = −1 entfällt)")}
+     Elif landet ebenfalls bei <b>5 m</b>, also auf der Landefläche – obwohl sie höher springt als Jonas.`,
+    vorbereiten: () => { bereit("elif"); zeige.elif = true; radBis(99); } },
+  { text: `<b>Vergleich.</b> Alle drei haben ihren höchsten Punkt bei <i>x</i> = 2, aber verschieden hoch. Drücke ▶ Sprung.
+     Probiere danach bei <b>„Eigener Sprung“</b> aus: Wie hoch muss die Kante mindestens sein, damit man über den Stapel kommt?`,
+    vorbereiten: () => { bereit("alle"); zeige.bahn = true; $("btnBahn").classList.add("aktiv"); } },
+]);
+$("btnSchrittmodus").onclick = () => { if (schritte.aktiv) { schritte.aus(); hilfenAus(); } else schritte.an(); };
+
+/* ---------- Erklärung ---------- */
+$("infoText").innerHTML = `
+  <p>Die Simulation gehört zur Aufgabe <b>„Sprung im Bikepark“</b>. Jonas fliegt auf
+  <span class="jonas"><i>h</i>(<i>x</i>) = −0,2(<i>x</i> − 2)² + 1,8</span>, Ben auf <span class="ben"><i>k</i>(<i>x</i>) = −0,2<i>x</i>² + 0,8<i>x</i> + 1,2</span>
+  und Elif auf <span class="elif"><i>s</i>(<i>x</i>) = −0,25(<i>x</i> − 2)² + 2,25</span>. Der Holzstapel liegt bei 3,5 m und ist 1,30 m hoch,
+  die Landefläche reicht von 4 m bis 6 m.</p>
+  <p>Mit <b>„Aufgabe Schritt für Schritt“</b> gehst du die Teilaufgaben a) bis g) durch.</p>
+  <p class="klein">Vereinfachung: Das Rad bewegt sich in der Luft waagerecht gleichmäßig, seine Höhe ist immer der Funktionswert.
+  Fahrer und Rad sind verkleinert gezeichnet, damit man die Flugbahn gut sieht. Der Holzstapel ist zur Spitze hin schmal gestapelt.</p>`;
+
+/* ---------- Start ---------- */
+const lauf = new Schleife({ dt: 0.002, schritt: physikSchritt,
+  bild: () => { szeneZeichnen(); graphZeichnen(); messwerteZeigen(); wandelAnzeigen(); } });
+let tAltW = performance.now();
+(function tick(t) { wandelTick(Math.min(0.1, (t - tAltW) / 1000)); tAltW = t; requestAnimationFrame(tick); })(performance.now());
+bedienungEinrichten(lauf, { reset: () => { schritte.aus(); hilfenAus(); neuStart(); },
+                            einzel: () => { if (fertig()) neuStart(); lauf.einzelschritt(0.06); } });
+const umschaltenAlt = lauf.umschalten.bind(lauf);
+lauf.umschalten = () => { if (!lauf.laeuft && fertig()) { const z = { ...zeige }; neuStart(); Object.assign(zeige, z); } umschaltenAlt(); };
+$("btnStart").onclick = () => lauf.umschalten();
+lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Sprung"; };
+$("btnPNG").onclick = () => alsPNG("bikepark_sprung.png", [$("szene")]);
+eigenAktualisieren();
+modusSetzen("jonas");
+</script>
+</body>
+</html>

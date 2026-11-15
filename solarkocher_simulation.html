@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solarkocher – Parabeln im Alltag</title>
+<!--
+  Simulation zur Aufgabe „Solarkocher“ (Parabeln im Alltag – E-Kurs 10)
+  Spiegel f(x) = 0,25x² + 2 (in dm) durch A(−4|6), B(1|2,25), C(2|3); Brennpunkt 1/(4a) über dem Scheitel → 3 dm über dem Tisch.
+  Flacher Spiegel g(x) = 0,125x² + 2, Brennpunkt 4 dm über dem Tisch.
+  Senkrechte Sonnenstrahlen werden nach dem Reflexionsgesetz gespiegelt und laufen durch den Brennpunkt.
+  Eine Datei, offline, keine externen Einbindungen.
+-->
+<style>
+  :root {
+    --hg: #ffffff; --flaeche: #f4f6f9; --rand: #d5dbe3; --text: #1b2430; --text2: #5a6675;
+    --akzent: #1f5c99;
+    --spiegel: #1f5c99; --flach: #7b3294; --eigen: #2e7d32; --licht: #f2a900; --hilf: #d95f02; --norm: #8a96a5; --gut: #2e7d32; --schlecht: #c62828;
+    --schrift: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--flaeche); color: var(--text); font-family: var(--schrift);
+         font-size: 1rem; line-height: 1.4; }
+  body.gross { font-size: 1.25rem; }
+  header { display: flex; align-items: center; gap: .8em; padding: .5em 1em;
+           background: var(--akzent); color: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 1.3em; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  header button { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+  main { display: grid; gap: .8em; padding: .8em;
+         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+         grid-template-areas: "szene steuerung" "regler graph" "info info"; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr);
+           grid-template-areas: "szene" "steuerung" "graph" "regler" "info"; }
+  }
+  .karte { background: var(--hg); border: 1px solid var(--rand); border-radius: 10px; padding: .7em; min-width: 0; }
+  .karte h2 { font-size: 1em; margin: 0 0 .4em; color: var(--text2); font-weight: 600; }
+  #szeneKarte { grid-area: szene; } #graphKarte { grid-area: graph; }
+  #steuerKarte { grid-area: steuerung; } #reglerKarte { grid-area: regler; } #infoKarte { grid-area: info; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  #szene { aspect-ratio: 1.45 / 1; min-height: 300px; max-height: 74vh; }
+  #graph { height: 40vh; min-height: 240px; }
+  button { font: inherit; font-size: 1em; padding: .45em .9em; min-height: 2.6em; min-width: 2.6em;
+           border-radius: 8px; border: 1px solid var(--rand); background: var(--hg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--akzent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.haupt { background: var(--akzent); color: #fff; border-color: var(--akzent); font-weight: 600; }
+  button.aktiv { outline: 3px solid var(--akzent); outline-offset: 1px; }
+  .zeile { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; }
+  .messwerte { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: .3em .8em;
+               margin-top: .6em; font-variant-numeric: tabular-nums; }
+  .messwerte div { background: var(--flaeche); border-radius: 6px; padding: .25em .5em; }
+  .messwerte b { font-weight: 600; }
+  .regler { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: .6em 1.4em; }
+  .regler label { display: block; font-weight: 600; }
+  .regler .wert { float: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; height: 2.2em; accent-color: var(--akzent); }
+  .presets { margin-top: .7em; }
+  #schritte { display: none; margin-top: .6em; padding: .6em .8em; border-left: 5px solid var(--akzent);
+              background: #eef4fb; border-radius: 6px; }
+  #schritte.an { display: block; }
+  #schrittText { font-size: 1.1em; margin: .2em 0 .5em; }
+  #schrittText .rechnung { display: block; margin: .3em 0 .3em 1em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .gleichung { font-size: 1.25em; text-align: center; margin: .4em 0; font-variant-numeric: tabular-nums; min-height: 1.6em; }
+  ol.wandel { margin: .3em 0 0; padding-left: 1.4em; }
+  ol.wandel li { padding: .1em .3em; border-radius: 5px; color: var(--text2); }
+  ol.wandel li.jetzt { background: #fdebd9; color: var(--text); font-weight: 600; }
+  ol.wandel li.fertig { color: var(--text); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .klein { color: var(--text2); font-size: .85em; }
+  kbd { border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em;
+        font-size: .85em; background: var(--flaeche); }
+  .spiegel { color: var(--spiegel); font-weight: 600; } .flach { color: var(--flach); font-weight: 600; }
+  .eigen { color: var(--eigen); font-weight: 600; } .hilf { color: var(--hilf); font-weight: 600; }
+</style>
+<style>
+  .gleichungsZeile { font-size: 1.15em; margin: .4em 0 .2em; font-variant-numeric: tabular-nums; }
+  #graph { height: 34vh; min-height: 230px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titel">Solarkocher – mit einer Parabel Wasser kochen</h1>
+  <button id="btnGross" title="Große Schrift für den Beamer (G)">Beamer-Ansicht</button>
+  <button id="btnVoll" title="Vollbild (F)">Vollbild</button>
+</header>
+
+<main>
+  <section class="karte" id="szeneKarte">
+    <h2>Querschnitt des Solarkochers (Maße in dm, 1 dm = 10 cm)</h2>
+    <canvas id="szene" aria-label="Querschnitt des Solarkochers mit Sonnenstrahlen"></canvas>
+    <div class="gleichungsZeile" id="gleichung2"></div>
+    <div class="zeile" style="margin-top:.3em">
+      <button id="btnKoord" class="aktiv">Koordinatensystem</button>
+      <button id="btnStrahlen" class="aktiv">Sonnenstrahlen</button>
+      <button id="btnBrenn">Topf in den Brennpunkt</button>
+    </div>
+    <p class="klein">Tipp: Den Topf kann man mit Maus oder Finger nach oben und unten ziehen.</p>
+  </section>
+
+  <section class="karte" id="steuerKarte">
+    <div class="zeile">
+      <button id="btnStart" class="haupt" title="Start/Pause (Leertaste)">☀ Sonne an</button>
+      <button id="btnSchritt" title="Ein Stück weiter (→)">Einzelschritt</button>
+      <button id="btnReset" title="Zurücksetzen (R)">↺ Zurücksetzen</button>
+      <button id="btnLangsam" title="Zeitlupe umschalten (L)">Zeitlupe: aus</button>
+    </div>
+    <div class="messwerte" id="messwerte"></div>
+    <div class="zeile presets" style="margin-top:.6em">
+      <button id="btnSchrittmodus" class="haupt">Aufgabe Schritt für Schritt</button>
+    </div>
+    <div id="schritte">
+      <div class="zeile" style="justify-content:space-between">
+        <b id="schrittNr"></b>
+        <span class="zeile"><button id="btnZurueck">◀ zurück</button><button id="btnWeiter" class="haupt">weiter ▶</button></span>
+      </div>
+      <div id="schrittText"></div>
+    </div>
+  </section>
+
+  <section class="karte" id="graphKarte">
+    <h2>Wo liegt der Brennpunkt? (Teil e)</h2>
+    <canvas id="graph" aria-label="Abstand des Brennpunkts in Abhängigkeit von a"></canvas>
+    <p class="klein" style="margin:.4em 0 0">Abstand des Brennpunkts vom tiefsten Punkt: <b>1/(4<i>a</i>)</b>.
+      Je kleiner <i>a</i> (je flacher der Spiegel), desto weiter oben liegt der Brennpunkt.</p>
+  </section>
+
+  <section class="karte" id="reglerKarte">
+    <h2>Welcher Spiegel?</h2>
+    <div class="zeile" id="presets"></div>
+    <div class="regler" id="regler" style="margin-top:.7em"></div>
+    <div class="zeile presets"><button id="btnPNG" title="Bild speichern">Bild speichern (PNG)</button></div>
+  </section>
+
+  <section class="karte" id="infoKarte">
+    <details>
+      <summary>Was zeigt die Simulation?</summary>
+      <div id="infoText"></div>
+    </details>
+    <p class="klein">Tastatur: <kbd>Leertaste</kbd> Sonne an/aus · <kbd>R</kbd> Zurücksetzen ·
+      <kbd>→</kbd> Einzelschritt · <kbd>L</kbd> Zeitlupe · <kbd>G</kbd> Beamer-Ansicht · <kbd>F</kbd> Vollbild</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   BAUKASTEN – allgemein verwendbar, in neuen Simulationen unverändert lassen
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Schriftgröße auf der Leinwand – wächst in der Beamer-Ansicht mit */
+const fs = px => Math.round(px * (document.body.classList.contains("gross") ? 1.3 : 1));
+
+/** Zahl deutsch formatieren: fmt(1.234, 2, "m") -> "1,23 m" */
+function fmt(x, stellen = 2, einheit = "") {
+  if (!isFinite(x)) return "–";
+  const s = x.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  return einheit ? s + " " + einheit : s;
+}
+
+/** Canvas mit scharfer Darstellung (HiDPI). Liefert {ctx, b, h} in CSS-Pixeln, passt sich an. */
+function leinwand(canvas, beiGroesse) {
+  const obj = { canvas, ctx: canvas.getContext("2d"), b: 0, h: 0 };
+  const anpassen = (melden = true) => {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    obj.b = Math.max(1, r.width); obj.h = Math.max(1, r.height);
+    canvas.width = Math.round(obj.b * dpr); canvas.height = Math.round(obj.h * dpr);
+    obj.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (melden && beiGroesse) beiGroesse();
+  };
+  anpassen(false);                       // Größe sofort setzen, Neuzeichnen erst bei Änderungen
+  new ResizeObserver(() => anpassen()).observe(canvas);
+  return obj;
+}
+
+/** Pfeil zeichnen (für Kräfte, Geschwindigkeiten, Maße) */
+function pfeil(ctx, x1, y1, x2, y2, farbe, breite = 3, spitze = 12) {
+  const w = Math.atan2(y2 - y1, x2 - x1), l = Math.hypot(x2 - x1, y2 - y1);
+  if (l < 1) return;
+  const s = Math.min(spitze, l * 0.6);
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - s * 0.7 * Math.cos(w), y2 - s * 0.7 * Math.sin(w)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(w - 0.4), y2 - s * Math.sin(w - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(w + 0.4), y2 - s * Math.sin(w + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Text mit Hintergrund (gut lesbar über Linien) */
+function beschriftung(ctx, text, x, y, { farbe = "#1b2430", groesse = 15, ausrichtung = "center",
+                                        grundlinie = "middle", fett = false, hintergrund = true } = {}) {
+  ctx.save(); groesse = fs(groesse); ctx.font = `${fett ? "600 " : ""}${groesse}px ${css("--schrift")}`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = grundlinie;
+  const m = ctx.measureText(text), pad = 3;
+  let x0 = ausrichtung === "center" ? x - m.width / 2 : ausrichtung === "right" ? x - m.width : x;
+  if (hintergrund) { ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillRect(x0 - pad, y - groesse * 0.6 - pad, m.width + 2 * pad, groesse * 1.2 + 2 * pad); }
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y); ctx.restore();
+}
+
+/** "Schöne" Achsenteilung */
+function teilung(min, max, ziel = 6) {
+  const roh = (max - min) / ziel, p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const f = roh / p, schritt = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const t = []; for (let v = Math.ceil(min / schritt) * schritt; v <= max + 1e-9 * schritt; v += schritt) t.push(v);
+  return { t, schritt, stellen: Math.max(0, -Math.floor(Math.log10(schritt) + 1e-9)) };
+}
+
+/**
+ * Live-Diagramm (Zeitreihen). Beispiel:
+ *   const d = new Diagramm(canvas, {xName:"t", xEinheit:"s", yName:"x", yEinheit:"m", fenster:10});
+ *   d.reihe("x", "Auslenkung", "#1f5c99");  d.punkt("x", t, x);  d.zeichnen();
+ * fenster = sichtbare Zeitspanne (mitlaufend); yMin/yMax fest oder automatisch.
+ */
+class Diagramm {
+  constructor(canvas, opt) {
+    this.o = Object.assign({ xName: "t", xEinheit: "s", yName: null, yEinheit: "", fenster: 10,
+                             yMin: null, yMax: null }, opt);
+    this.reihen = new Map(); this.lw = leinwand(canvas, () => this.zeichnen());
+  }
+  /** name = Text für den Knopf, achse = Achsenbeschriftung, z. B. "s in cm" */
+  reihe(id, name, farbe, sichtbar = true, achse = name) { this.reihen.set(id, { name, farbe, sichtbar, achse, d: [] }); }
+  punkt(id, x, y) { const r = this.reihen.get(id); r.d.push([x, y]); if (r.d.length > 20000) r.d.splice(0, 5000); }
+  leeren() { for (const r of this.reihen.values()) r.d = []; }
+  achsen(opt) { Object.assign(this.o, opt); }
+  zeichnen() {
+    const { ctx, b, h } = this.lw, o = this.o, R = { l: 62, r: 14, o: 18, u: 46 };
+    ctx.clearRect(0, 0, b, h);
+    const sicht = [...this.reihen.values()].filter(r => r.sichtbar);
+    let xMax = 0; for (const r of sicht) if (r.d.length) xMax = Math.max(xMax, r.d[r.d.length - 1][0]);
+    const x1 = Math.max(o.fenster, xMax), x0 = x1 - o.fenster;
+    let y0 = o.yMin, y1 = o.yMax;
+    if (y0 === null || y1 === null) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of sicht) for (const [x, y] of r.d) if (x >= x0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (!isFinite(lo)) { lo = -1; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      const rand = 0.1 * (hi - lo);
+      if (y0 === null) y0 = lo - rand; if (y1 === null) y1 = hi + rand;
+    }
+    const X = x => R.l + (x - x0) / (x1 - x0) * (b - R.l - R.r);
+    const Y = y => h - R.u - (y - y0) / (y1 - y0) * (h - R.o - R.u);
+    ctx.font = `${fs(13)}px ${css("--schrift")}`; ctx.lineWidth = 1;
+    const tx = teilung(x0, x1, Math.max(3, Math.floor(b / 90))), ty = teilung(y0, y1, Math.max(3, Math.floor(h / 55)));
+    ctx.strokeStyle = "#e3e7ec"; ctx.fillStyle = "#5a6675";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const v of tx.t) { ctx.beginPath(); ctx.moveTo(X(v), R.o); ctx.lineTo(X(v), h - R.u); ctx.stroke();
+                            ctx.fillText(fmt(v, tx.stellen), X(v), h - R.u + 5); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const v of ty.t) { ctx.beginPath(); ctx.moveTo(R.l, Y(v)); ctx.lineTo(b - R.r, Y(v)); ctx.stroke();
+                            ctx.fillText(fmt(v, ty.stellen), R.l - 6, Y(v)); }
+    // Achsen (Nulllinie hervorheben)
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const yNull = (y0 < 0 && y1 > 0) ? Y(0) : h - R.u;
+    ctx.moveTo(R.l, yNull); ctx.lineTo(b - R.r, yNull); ctx.moveTo(R.l, R.o); ctx.lineTo(R.l, h - R.u); ctx.stroke();
+    ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${o.xName} in ${o.xEinheit}`, b - R.r, h - 4);
+    ctx.save(); ctx.translate(14, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+    const yText = o.yName ? (o.yEinheit ? `${o.yName} in ${o.yEinheit}` : o.yName) : sicht.map(r => r.achse).join(",  ");
+    ctx.fillText(yText, 0, 0); ctx.restore();
+    // Kurven
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    for (const r of sicht) {
+      ctx.strokeStyle = r.farbe; ctx.lineWidth = 2.5; ctx.beginPath(); let an = false;
+      for (const [x, y] of r.d) { if (x < x0 - 1e-9) continue; an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+      ctx.stroke();
+      if (r.d.length) { const [x, y] = r.d[r.d.length - 1]; ctx.fillStyle = r.farbe;
+                        ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  /** Knöpfe zum Ein-/Ausblenden der Kurven in ein Element einfügen */
+  auswahl(el) {
+    el.innerHTML = "";
+    for (const [id, r] of this.reihen) {
+      const k = document.createElement("button");
+      k.innerHTML = `<span style="color:${r.farbe}">━━</span> ${r.name}`;
+      k.classList.toggle("aktiv", r.sichtbar);
+      k.onclick = () => { r.sichtbar = !r.sichtbar; k.classList.toggle("aktiv", r.sichtbar); this.zeichnen(); };
+      el.appendChild(k);
+    }
+  }
+}
+
+/**
+ * Energiebalken. Beispiel:
+ *   const eb = new Balken(canvas, [{id:"pot", name:"E_Spann", farbe:css("--e-pot")}, ...], "J");
+ *   eb.zeichnen({pot: 0.2, kin: 0.1, ges: 0.3}, maxWert);
+ */
+class Balken {
+  constructor(canvas, arten, einheit = "J") { this.arten = arten; this.einheit = einheit;
+    this.lw = leinwand(canvas, () => this.letzte && this.zeichnen(...this.letzte)); }
+  zeichnen(werte, max) {
+    this.letzte = [werte, max];
+    const { ctx, b, h } = this.lw, n = this.arten.length, R = { l: 10, r: 10, o: 26, u: 30 };
+    ctx.clearRect(0, 0, b, h);
+    const bw = (b - R.l - R.r) / n, H = h - R.o - R.u, sk = max > 0 ? H / max : 0;
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(R.l, h - R.u); ctx.lineTo(b - R.r, h - R.u); ctx.stroke();
+    this.arten.forEach((a, i) => {
+      const v = Math.max(0, werte[a.id] || 0), x = R.l + i * bw + bw * 0.18, w = bw * 0.64;
+      ctx.fillStyle = a.farbe; ctx.fillRect(x, h - R.u - v * sk, w, v * sk);
+      ctx.font = `600 ${fs(14)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430"; ctx.textAlign = "center";
+      ctx.textBaseline = "top"; ctx.fillText(a.name, x + w / 2, h - R.u + 6);
+      ctx.textBaseline = "bottom"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+      ctx.fillText(fmt(werte[a.id] || 0, a.stellen ?? 2, this.einheit), x + w / 2, Math.max(R.o + 2, h - R.u - v * sk - 4));
+    });
+  }
+}
+
+/** Regler erzeugen. Liefert Objekt mit .wert; ruft beiAenderung(wert) auf. */
+function regler(container, { id, name, min, max, schritt, wert, einheit = "", stellen = 2, beiAenderung }) {
+  const box = document.createElement("div");
+  box.innerHTML = `<label for="r_${id}">${name} <span class="wert" id="w_${id}"></span></label>
+                   <input type="range" id="r_${id}" min="${min}" max="${max}" step="${schritt}" value="${wert}">`;
+  container.appendChild(box);
+  const inp = box.querySelector("input"), anz = box.querySelector(".wert");
+  const r = { get wert() { return parseFloat(inp.value); },
+              setzen(v) { inp.value = v; anz.textContent = fmt(parseFloat(inp.value), stellen, einheit); },
+              sperren(an) { inp.disabled = an; } };
+  r.setzen(wert);
+  inp.addEventListener("input", () => { anz.textContent = fmt(r.wert, stellen, einheit); beiAenderung && beiAenderung(r.wert); });
+  return r;
+}
+
+/** Datei aus der Seite heraus speichern (funktioniert offline) */
+function speichern(name, inhalt, typ) {
+  const a = document.createElement("a");
+  a.href = typeof inhalt === "string" ? URL.createObjectURL(new Blob([inhalt], { type: typ })) : inhalt;
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/** Mehrere Canvas nebeneinander als ein PNG speichern */
+function alsPNG(name, canvasListe) {
+  const b = canvasListe.reduce((s, c) => s + c.width, 0), h = Math.max(...canvasListe.map(c => c.height));
+  const z = document.createElement("canvas"); z.width = b; z.height = h;
+  const ctx = z.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  let x = 0; for (const c of canvasListe) { ctx.drawImage(c, x, 0); x += c.width; }
+  speichern(name, z.toDataURL("image/png"));
+}
+
+/**
+ * Simulationsschleife mit festem Zeitschritt (physikalisch sauber, unabhängig von der Bildrate).
+ *   const lauf = new Schleife({dt: 0.001, schritt: dt => {...}, bild: () => {...}});
+ *   lauf.start(); lauf.pause(); lauf.tempo = 0.2 (Zeitlupe)
+ */
+class Schleife {
+  constructor({ dt, schritt, bild, beiStatus }) {
+    Object.assign(this, { dt, schritt, bild, beiStatus, laeuft: false, tempo: 1, rest: 0, tAlt: 0 });
+    const tick = tJetzt => {
+      if (this.laeuft) {
+        let echt = Math.min(0.1, (tJetzt - this.tAlt) / 1000);   // nach Tab-Wechsel nicht springen
+        this.rest += echt * this.tempo;
+        let n = 0; while (this.rest >= this.dt && n < 20000) { this.schritt(this.dt); this.rest -= this.dt; n++; }
+      }
+      this.tAlt = tJetzt; this.bild(); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  start() { this.laeuft = true; this.beiStatus && this.beiStatus(true); }
+  pause() { this.laeuft = false; this.beiStatus && this.beiStatus(false); }
+  umschalten() { this.laeuft ? this.pause() : this.start(); }
+  einzelschritt(dauer) { this.pause(); const n = Math.round(dauer / this.dt); for (let i = 0; i < n; i++) this.schritt(this.dt); }
+}
+
+/**
+ * Schritt-für-Schritt-Modus zum Besprechen im Plenum.
+ *   schrittmodus([{text:"…", vorbereiten: () => {...}}, ...])
+ */
+function schrittmodus(schritte) {
+  let i = 0; const box = $("schritte");
+  const zeigen = () => { $("schrittNr").textContent = `Schritt ${i + 1} von ${schritte.length}`;
+    $("schrittText").innerHTML = schritte[i].text; schritte[i].vorbereiten && schritte[i].vorbereiten();
+    $("btnZurueck").disabled = i === 0; $("btnWeiter").disabled = i === schritte.length - 1; };
+  $("btnZurueck").onclick = () => { if (i > 0) { i--; zeigen(); } };
+  $("btnWeiter").onclick = () => { if (i < schritte.length - 1) { i++; zeigen(); } };
+  return { an() { box.classList.add("an"); i = 0; zeigen(); }, aus() { box.classList.remove("an"); },
+           get aktiv() { return box.classList.contains("an"); } };
+}
+
+/** Vollbild, Beamer-Ansicht, Tastatur */
+function bedienungEinrichten(lauf, { reset, einzel }) {
+  $("btnVoll").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $("btnGross").onclick = () => { document.body.classList.toggle("gross"); $("btnGross").classList.toggle("aktiv"); };
+  $("btnStart").onclick = () => lauf.umschalten();
+  $("btnReset").onclick = reset;
+  $("btnSchritt").onclick = einzel;
+  $("btnLangsam").onclick = () => { lauf.tempo = lauf.tempo === 1 ? 0.2 : 1;
+    $("btnLangsam").textContent = `Zeitlupe: ${lauf.tempo === 1 ? "aus" : "an (×0,2)"}`;
+    $("btnLangsam").classList.toggle("aktiv", lauf.tempo !== 1); };
+  lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Start"; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    const k = e.key.toLowerCase();
+    if (k === " ") { e.preventDefault(); lauf.umschalten(); }
+    else if (k === "r") reset(); else if (k === "arrowright") einzel();
+    else if (k === "l") $("btnLangsam").click(); else if (k === "g") $("btnGross").click();
+    else if (k === "f") $("btnVoll").click();
+  });
+}
+
+
+/* =====================================================================
+   MODELL – Solarkocher
+   Spiegel  y = a·x² + c  (x, y in dm, Tischplatte auf der x-Achse), Breite höchstens 10 dm
+   Brennpunkt F(0 | c + 1/(4a)). Senkrecht einfallende Strahlen werden am Spiegel nach dem
+   Reflexionsgesetz gespiegelt (Spiegelung an der Normalen) und laufen dadurch genau durch F.
+   Erwärmung (Modell): dT/dt = 9 K/s · q − 0,06/s · (T − 20 °C), q = Anteil der Strahlen auf dem Topf.
+   ===================================================================== */
+const SPIEGEL = {
+  f:     { id: "f", name: "Spiegel der AG", fn: "f", farbe: css("--spiegel"), a: 0.25, c: 2 },
+  g:     { id: "g", name: "Flacher Spiegel", fn: "g", farbe: css("--flach"), a: 0.125, c: 2 },
+  eigen: { id: "eigen", name: "Eigener Spiegel", fn: "y", farbe: css("--eigen"), a: 0.35, c: 2 },
+};
+let S = SPIEGEL.f;
+const TOPF_B = 1.6, TOPF_H = 1.2, V_LICHT = 9, YOBEN = 9.7, RAND_MAX = 8.25;
+const spiegelY = x => S.a * x * x + S.c;
+const brenn = () => S.c + 1 / (4 * S.a);
+const xRand = () => Math.min(5, Math.sqrt((RAND_MAX - S.c) / S.a));
+const Z = { t: 0, T: 20, topf: 3, kocht: false };
+const zeige = { koord: true, strahlen: true, punkte: false, scheitel: false, rand: false, ring: false, brenn: false };
+
+/* ---------- Strahlengang ---------- */
+function schnittRechteck(p, q, r) {          // Liang-Barsky: Parameter t∈[0,1] des ersten Treffers oder null
+  let t0 = 0, t1 = 1; const dx = q[0] - p[0], dy = q[1] - p[1];
+  for (const [pp, qq] of [[-dx, p[0] - r.x0], [dx, r.x1 - p[0]], [-dy, p[1] - r.y0], [dy, r.y1 - p[1]]]) {
+    if (Math.abs(pp) < 1e-12) { if (qq < 0) return null; continue; }
+    const t = qq / pp; if (pp < 0) { if (t > t1) return null; if (t > t0) t0 = t; } else { if (t < t0) return null; if (t < t1) t1 = t; }
+  }
+  return t0;
+}
+function strahlen() {
+  const topf = { x0: -TOPF_B / 2, x1: TOPF_B / 2, y0: Z.topf - TOPF_H / 2, y1: Z.topf + TOPF_H / 2 };
+  const liste = [], xr = xRand();
+  for (let x0 = -4.5; x0 <= 4.5 + 1e-9; x0 += 0.75) {
+    if (Math.abs(x0) > xr) continue;
+    const P = [x0, spiegelY(x0)], start = [x0, YOBEN];
+    // direkt von oben auf den Topf?
+    if (Math.abs(x0) <= TOPF_B / 2 && topf.y1 > P[1]) { liste.push({ pts: [start, [x0, topf.y1]], treffer: true, direkt: true }); continue; }
+    // Reflexion: einfallend d = (0, −1), Normale n ~ (−2ax, 1)
+    const m = 2 * S.a * x0, nl = Math.hypot(m, 1), n = [-m / nl, 1 / nl], d = [0, -1];
+    const dn = d[0] * n[0] + d[1] * n[1], r = [d[0] - 2 * dn * n[0], d[1] - 2 * dn * n[1]];
+    let sEnde = 20;
+    if (Math.abs(r[0]) > 1e-9) {                       // trifft der Strahl den Spiegel ein zweites Mal? Dann endet er dort.
+      const s2 = (r[1] - 2 * S.a * P[0] * r[0]) / (S.a * r[0] * r[0]), x2 = P[0] + s2 * r[0];
+      if (s2 > 1e-6 && Math.abs(x2) <= xr) sEnde = Math.min(sEnde, s2);
+    }
+    const ende = [P[0] + r[0] * sEnde, P[1] + r[1] * sEnde];
+    const t = schnittRechteck(P, ende, topf);
+    if (t !== null) liste.push({ pts: [start, P, [P[0] + (ende[0] - P[0]) * t, P[1] + (ende[1] - P[1]) * t]], treffer: true });
+    else liste.push({ pts: [start, P, ende], treffer: false });
+  }
+  return liste;
+}
+const laenge = pts => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
+function anteil() {
+  const L = strahlen(); let q = 0;
+  for (const s of L) if (s.treffer && Z.t * V_LICHT >= laenge(s.pts)) q++;
+  return { q: L.length ? q / L.length : 0, treffer: L.filter(s => s.treffer).length, n: L.length };
+}
+function physikSchritt(dt) {
+  Z.t += dt;
+  const { q } = anteil();
+  Z.T += (9 * q - 0.06 * (Z.T - 20)) * dt;
+  if (Z.T >= 100) { Z.T = 100; Z.kocht = true; } else if (Z.T < 99) Z.kocht = false;
+}
+function neuStart() { lauf.pause(); Z.t = 0; Z.T = 20; Z.kocht = false; }
+
+/* ---------- Zeichnen ---------- */
+const szene = leinwand($("szene"), () => szeneZeichnen());
+const XMIN = -7.4, XMAX = 7.4, YMIN = -0.7, YMAX = 9.9;
+function koordinaten() {
+  const { b, h } = szene;
+  const sk = Math.min((b - 16) / (XMAX - XMIN), (h - 16) / (YMAX - YMIN));
+  const ox = b / 2, oy = h - 8 + YMIN * sk;
+  return { sk, X: x => ox + x * sk, Y: y => oy - y * sk };
+}
+function punkt(ctx, K, x, y, farbe, text, { dx = 0, dy = -18, ausrichtung = "center", r = 5 } = {}) {
+  ctx.save(); ctx.fillStyle = farbe; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.X(x), K.Y(y), r, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+  if (text) beschriftung(ctx, text, K.X(x) + dx, K.Y(y) + dy, { groesse: 14, fett: true, farbe, ausrichtung });
+}
+function kreuz(ctx, K, x, y, farbe, text, dx, dy, ausrichtung) {
+  const px = K.X(x), py = K.Y(y), s = 7;
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px - s, py - s); ctx.lineTo(px + s, py + s); ctx.moveTo(px - s, py + s); ctx.lineTo(px + s, py - s); ctx.stroke();
+  ctx.restore(); beschriftung(ctx, text, px + dx, py + dy, { groesse: 14, fett: true, farbe, ausrichtung });
+}
+function gestrichelt(ctx, x1, y1, x2, y2, farbe, breite = 1.5) {
+  ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = farbe; ctx.lineWidth = breite;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function masspfeil(ctx, x1, y1, x2, y2, farbe) { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  pfeil(ctx, mx, my, x1, y1, farbe, 2, 9); pfeil(ctx, mx, my, x2, y2, farbe, 2, 9); }
+
+function spiegelZeichnen(ctx, K) {
+  const xr = xRand();
+  // Ständer
+  ctx.fillStyle = "#6b7684"; ctx.fillRect(K.X(-0.12), K.Y(S.c), 0.24 * K.sk, (S.c) * K.sk);
+  ctx.fillRect(K.X(-1.1), K.Y(0.15), 2.2 * K.sk, 0.15 * K.sk);
+  // Rückseite und Spiegelfläche
+  const pfad = (dy) => { ctx.beginPath(); for (let i = 0; i <= 120; i++) { const x = -xr + 2 * xr * i / 120;
+    const p = [K.X(x), K.Y(spiegelY(x) - dy)]; i ? ctx.lineTo(...p) : ctx.moveTo(...p); } };
+  ctx.save(); ctx.lineCap = "round";
+  pfad(0.12); ctx.strokeStyle = "#4a5260"; ctx.lineWidth = Math.max(5, 0.22 * K.sk); ctx.stroke();
+  pfad(0); ctx.strokeStyle = "#dfe6ee"; ctx.lineWidth = Math.max(3, 0.12 * K.sk); ctx.stroke();
+  pfad(-0.02); ctx.strokeStyle = S.farbe; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+function topfZeichnen(ctx, K) {
+  const x0 = K.X(-TOPF_B / 2), y0 = K.Y(Z.topf + TOPF_H / 2), w = TOPF_B * K.sk, hh = TOPF_H * K.sk;
+  // Halterung (Stab vom Ständer)
+  ctx.fillStyle = "#8a96a5"; ctx.fillRect(K.X(-0.05), K.Y(Z.topf - TOPF_H / 2), 0.1 * K.sk, (Z.topf - TOPF_H / 2 - S.c) * K.sk);
+  const gl = Math.min(1, (Z.T - 20) / 80);
+  ctx.fillStyle = `rgb(${Math.round(40 + 120 * gl)},${Math.round(40 - 10 * gl)},${Math.round(45 - 15 * gl)})`;
+  ctx.fillRect(x0, y0, w, hh);
+  ctx.fillStyle = "#222"; ctx.fillRect(x0 - 0.1 * K.sk, y0 - 0.08 * K.sk, w + 0.2 * K.sk, 0.1 * K.sk);
+  ctx.fillRect(K.X(-0.12), y0 - 0.2 * K.sk, 0.24 * K.sk, 0.12 * K.sk);
+  ctx.strokeStyle = "#222"; ctx.lineWidth = Math.max(2, 0.06 * K.sk);
+  ctx.beginPath(); ctx.arc(x0 - 0.12 * K.sk, y0 + hh * 0.3, 0.12 * K.sk, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x0 + w + 0.12 * K.sk, y0 + hh * 0.3, 0.12 * K.sk, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+  // Dampf
+  if (Z.T > 70) {
+    const st = Math.min(1, (Z.T - 70) / 30);
+    ctx.save(); ctx.strokeStyle = `rgba(150,160,175,${0.25 + 0.5 * st})`; ctx.lineWidth = Math.max(2, 0.08 * K.sk); ctx.lineCap = "round";
+    for (let k = -1; k <= 1; k++) { ctx.beginPath();
+      for (let i = 0; i <= 20; i++) { const yy = i / 20 * (0.9 + 0.6 * st), xx = k * 0.4 + 0.12 * Math.sin(yy * 7 - Z.t * 5 + k);
+        const p = [K.X(xx), y0 - 0.25 * K.sk - yy * K.sk]; i ? ctx.lineTo(...p) : ctx.moveTo(...p); } ctx.stroke(); }
+    ctx.restore();
+  }
+  szene.topf = { x0, x1: x0 + w, y0: y0 - 0.2 * K.sk, y1: y0 + hh };
+}
+function sonne(ctx, K) {
+  const x = K.X(5.9), y = K.Y(8.9), r = 0.55 * K.sk;
+  ctx.save(); ctx.fillStyle = "#ffd54f"; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffca28"; ctx.lineWidth = 3;
+  for (let k = 0; k < 12; k++) { const w = k * Math.PI / 6 + Z.t * 0.3; ctx.beginPath();
+    ctx.moveTo(x + Math.cos(w) * r * 1.25, y + Math.sin(w) * r * 1.25); ctx.lineTo(x + Math.cos(w) * r * 1.6, y + Math.sin(w) * r * 1.6); ctx.stroke(); }
+  ctx.restore();
+}
+function strahlenZeichnen(ctx, K) {
+  const weg = Z.t * V_LICHT, L = strahlen();
+  ctx.save(); ctx.lineCap = "round";
+  for (const s of L) {
+    ctx.strokeStyle = s.treffer ? "rgba(242,169,0,.95)" : "rgba(242,169,0,.45)"; ctx.lineWidth = 2.5;
+    ctx.setLineDash(lauf.laeuft ? [14, 9] : []); ctx.lineDashOffset = -Z.t * 60;
+    ctx.beginPath(); let rest = weg;
+    ctx.moveTo(K.X(s.pts[0][0]), K.Y(s.pts[0][1]));
+    for (let i = 1; i < s.pts.length && rest > 0; i++) {
+      const [ax, ay] = s.pts[i - 1], [bx, by] = s.pts[i], l = Math.hypot(bx - ax, by - ay), f = Math.min(1, rest / l);
+      ctx.lineTo(K.X(ax + (bx - ax) * f), K.Y(ay + (by - ay) * f)); rest -= l;
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function szeneZeichnen() {
+  const { ctx, b, h } = szene, K = koordinaten();
+  ctx.clearRect(0, 0, b, h);
+  const g = ctx.createLinearGradient(0, 0, 0, K.Y(0)); g.addColorStop(0, "#cfe6f7"); g.addColorStop(1, "#f6fbfe");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, b, h);
+  // Tisch
+  ctx.fillStyle = "#b58457"; ctx.fillRect(K.X(-7), K.Y(0), 14 * K.sk, 0.35 * K.sk);
+  ctx.fillStyle = "#8d6240"; ctx.fillRect(K.X(-6.6), K.Y(-0.35), 0.4 * K.sk, h); ctx.fillRect(K.X(6.2), K.Y(-0.35), 0.4 * K.sk, h);
+  sonne(ctx, K);
+  // Koordinatensystem
+  if (zeige.koord) {
+    ctx.save(); ctx.strokeStyle = "rgba(31,92,153,.13)"; ctx.lineWidth = 1;
+    for (let x = -7; x <= 7; x++) { ctx.beginPath(); ctx.moveTo(K.X(x), K.Y(0)); ctx.lineTo(K.X(x), K.Y(YMAX - 0.2)); ctx.stroke(); }
+    for (let y = 1; y < YMAX - 0.2; y++) { ctx.beginPath(); ctx.moveTo(K.X(-7.2), K.Y(y)); ctx.lineTo(K.X(7.2), K.Y(y)); ctx.stroke(); }
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(K.X(-7.2), K.Y(0)); ctx.lineTo(K.X(7.1), K.Y(0)); ctx.moveTo(K.X(0), K.Y(0)); ctx.lineTo(K.X(0), K.Y(YMAX - 0.15)); ctx.stroke();
+    pfeil(ctx, K.X(6.8), K.Y(0), K.X(7.3), K.Y(0), "#1b2430", 1.5, 9);
+    pfeil(ctx, K.X(0), K.Y(YMAX - 0.6), K.X(0), K.Y(YMAX - 0.05), "#1b2430", 1.5, 9);
+    ctx.fillStyle = "#1b2430"; ctx.font = `${fs(12)}px ${css("--schrift")}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let x = -6; x <= 6; x++) if (x) ctx.fillText(String(x).replace("-", "−"), K.X(x), K.Y(0) + 4);
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let y = 1; y < YMAX - 0.4; y++) ctx.fillText(String(y), K.X(0) - 5, K.Y(y));
+    ctx.font = `600 ${fs(13)}px ${css("--schrift")}`; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText("x in dm", K.X(7.3), K.Y(0) - 4);
+    ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText("y in dm", K.X(0) + 6, K.Y(YMAX) + 2);
+    ctx.restore();
+  }
+  spiegelZeichnen(ctx, K);
+  // Hilfen der Schritte (unter Topf und Strahlen)
+  if (zeige.ring) {
+    ctx.save(); ctx.strokeStyle = "#5a6675"; ctx.lineWidth = Math.max(4, 0.12 * K.sk);
+    ctx.beginPath(); ctx.moveTo(K.X(-3), K.Y(4.25)); ctx.lineTo(K.X(3), K.Y(4.25)); ctx.stroke(); ctx.restore();
+    punkt(ctx, K, -3, 4.25, css("--hilf"), "x = −3", { dx: -10, dy: 0, ausrichtung: "right" });
+    punkt(ctx, K, 3, 4.25, css("--hilf"), "x = 3", { dx: 10, dy: 0, ausrichtung: "left" });
+    masspfeil(ctx, K.X(-3), K.Y(4.25) + 18, K.X(3), K.Y(4.25) + 18, css("--hilf"));
+    beschriftung(ctx, "Haltering: 6 dm", K.X(1.5), K.Y(4.25) + 18, { groesse: 14, fett: true, farbe: css("--hilf") });
+    beschriftung(ctx, "4,25 dm", K.X(-5.6), K.Y(4.25), { groesse: 13, fett: true, farbe: css("--hilf") });
+    gestrichelt(ctx, K.X(-5.1), K.Y(4.25), K.X(-3), K.Y(4.25), css("--hilf"), 1.5);
+  }
+  if (zeige.rand) {
+    for (const s of [-1, 1]) {
+      gestrichelt(ctx, K.X(5 * s), K.Y(0), K.X(5 * s), K.Y(8.25), css("--hilf"), 2);
+      punkt(ctx, K, 5 * s, 8.25, css("--hilf"), s > 0 ? "f(5) = 8,25" : "f(−5) = 8,25", { dy: -16 });
+    }
+    masspfeil(ctx, K.X(-5), K.Y(0.6), K.X(5), K.Y(0.6), css("--hilf"));
+    beschriftung(ctx, "Breite 10 dm", K.X(2.5), K.Y(0.6), { groesse: 13, fett: true, farbe: css("--hilf") });
+  }
+  if (zeige.scheitel) {
+    punkt(ctx, K, 0, S.c, S.farbe, `S(0 | ${zahl(S.c)})`, { dx: 12, dy: 14, ausrichtung: "left", r: 6 });
+    gestrichelt(ctx, K.X(-2), K.Y(3), K.X(2), K.Y(3), css("--hilf"), 2);
+    punkt(ctx, K, -2, 3, css("--hilf"), "(−2 | 3)", { dx: -10, dy: -12, ausrichtung: "right" });
+    punkt(ctx, K, 2, 3, css("--hilf"), "(2 | 3)", { dx: 10, dy: -12, ausrichtung: "left" });
+  }
+  if (zeige.punkte) {
+    kreuz(ctx, K, -4, 6, S.farbe, "A(−4 | 6)", -12, 0, "right");
+    kreuz(ctx, K, 1, 2.25, S.farbe, "B(1 | 2,25)", 12, 14, "left");
+    kreuz(ctx, K, 2, 3, S.farbe, "C(2 | 3)", 12, 10, "left");
+  }
+  if (zeige.strahlen) strahlenZeichnen(ctx, K);
+  topfZeichnen(ctx, K);
+  if (zeige.brenn) {
+    const F = brenn();
+    pfeil(ctx, K.X(-1.6), K.Y(S.c), K.X(-1.6), K.Y(F) + 2, css("--hilf"), 2.5, 9);
+    pfeil(ctx, K.X(-1.6), K.Y(F), K.X(-1.6), K.Y(S.c) - 2, css("--hilf"), 2.5, 9);
+    gestrichelt(ctx, K.X(-1.75), K.Y(F), K.X(0), K.Y(F), css("--hilf"), 1.5);
+    gestrichelt(ctx, K.X(-1.75), K.Y(S.c), K.X(0), K.Y(S.c), css("--hilf"), 1.5);
+    beschriftung(ctx, `1/(4a) = ${zahl(1 / (4 * S.a), 2)} dm`, K.X(-1.75), K.Y((F + S.c) / 2), { groesse: 14, fett: true, farbe: css("--hilf"), ausrichtung: "right" });
+  }
+  // Brennpunkt markieren (sobald Strahlen oder Brennpunkt-Hilfe zu sehen sind)
+  if (zeige.strahlen || zeige.brenn) {
+  ctx.save(); ctx.fillStyle = "#e65100"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.X(0), K.Y(brenn()), 6, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+  beschriftung(ctx, `F(0 | ${zahl(brenn(), 2)})`, K.X(TOPF_B / 2) + 26, K.Y(brenn()), { groesse: 14, fett: true, farbe: "#e65100", ausrichtung: "left" });
+  }
+  if (Z.kocht) beschriftung(ctx, "Das Wasser kocht!", K.X(0), K.Y(Z.topf + TOPF_H / 2) - 1.9 * K.sk, { groesse: 16, fett: true, farbe: "#c62828" });
+}
+
+/* ---------- Messwerte ---------- */
+function zahl(v, n = 2) { const t = fmt(Math.abs(v) < 1e-9 ? 0 : v, n).replace("-", "−"); return t.includes(",") ? t.replace(/0+$/, "").replace(/,$/, "") : t; }
+function messwerteZeigen() {
+  const a = anteil(), F = brenn(), abw = Z.topf - F;
+  $("messwerte").innerHTML =
+    `<div>Brennpunkt: <b>${fmt(F, 2, "dm")}</b> über dem Tisch</div>
+     <div>Topf (Mitte): ${fmt(Z.topf, 2, "dm")} ${Math.abs(abw) < 0.05 ? "<b style='color:var(--gut)'>✓ im Brennpunkt</b>" : abw > 0 ? "(zu hoch)" : "(zu tief)"}</div>
+     <div>Strahlen auf dem Topf: <b>${a.treffer} von ${a.n}</b></div>
+     <div>Wasser: <b style="color:${Z.T >= 100 ? "#c62828" : "inherit"}">${fmt(Z.T, 0, "°C")}</b>${Z.kocht ? " – kocht!" : ""}</div>`;
+  const aT = zahl(S.a, 3), name = S.fn === "y" ? "<i>y</i>" : `<i>${S.fn}</i>(<i>x</i>)`;
+  $("gleichung2").innerHTML = `<span style="color:${S.farbe};font-weight:600">${S.name}:</span> ${name} = ${aT}<i>x</i>² + ${zahl(S.c)}
+     &nbsp;·&nbsp; Brennpunkt 1/(4·${aT}) = ${zahl(1 / (4 * S.a), 2)} dm über dem tiefsten Punkt`;
+}
+
+/* ---------- Karte: Abstand des Brennpunkts 1/(4a) ---------- */
+const graph = leinwand($("graph"), () => graphZeichnen());
+function graphZeichnen() {
+  const { ctx, b, h } = graph, R = { l: 46, r: 14, o: 14, u: 40 };
+  ctx.clearRect(0, 0, b, h);
+  const A0 = 0, A1 = 0.6, P0 = 0, P1 = 4;
+  const X = a => R.l + (a - A0) / (A1 - A0) * (b - R.l - R.r), Y = p => h - R.u - (p - P0) / (P1 - P0) * (h - R.o - R.u);
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1; ctx.font = `${fs(12)}px ${css("--schrift")}`; ctx.fillStyle = "#5a6675";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let a = 0; a <= A1 + 1e-9; a += 0.1) { ctx.beginPath(); ctx.moveTo(X(a), Y(P0)); ctx.lineTo(X(a), Y(P1)); ctx.stroke(); ctx.fillText(fmt(a, 1), X(a), Y(0) + 4); }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let p = 0; p <= P1; p += 1) { ctx.beginPath(); ctx.moveTo(X(A0), Y(p)); ctx.lineTo(X(A1), Y(p)); ctx.stroke(); ctx.fillText(String(p), X(0) - 5, Y(p)); }
+  ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(A1), Y(0)); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(0), Y(P1)); ctx.stroke();
+  ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(13)}px ${css("--schrift")}`;
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("a", X(A1), h - 4);
+  ctx.save(); ctx.translate(13, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+  ctx.fillText("Abstand 1/(4a) in dm", 0, 0); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+  ctx.strokeStyle = css("--hilf"); ctx.lineWidth = 3; ctx.beginPath();
+  for (let i = 0; i <= 300; i++) { const a = 0.05 + (A1 - 0.05) * i / 300, p = 1 / (4 * a); i ? ctx.lineTo(X(a), Y(p)) : ctx.moveTo(X(a), Y(p)); }
+  ctx.stroke(); ctx.restore();
+  for (const Sp of [SPIEGEL.f, SPIEGEL.g, ...(S === SPIEGEL.eigen ? [SPIEGEL.eigen] : [])]) {
+    const p = 1 / (4 * Sp.a); if (p > P1) continue;
+    ctx.fillStyle = Sp.farbe; ctx.beginPath(); ctx.arc(X(Sp.a), Y(p), Sp === S ? 7 : 5, 0, 7); ctx.fill();
+    beschriftung(ctx, `${Sp.fn === "y" ? "eigener" : Sp.fn}: a = ${zahl(Sp.a, 3)} → ${zahl(p, 2)} dm`, X(Sp.a) + 10, Y(p) - 12, { groesse: 13, fett: Sp === S, farbe: Sp.farbe, ausrichtung: "left" });
+  }
+}
+
+/* ---------- Spiegelwahl, Regler, Ziehen ---------- */
+const R = {};
+R.a = regler($("regler"), { id: "a", name: "Öffnungsfaktor a (eigener Spiegel)", min: 0.08, max: 0.6, schritt: 0.005, wert: SPIEGEL.eigen.a, stellen: 3,
+  beiAenderung: v => { SPIEGEL.eigen.a = v; if (S !== SPIEGEL.eigen) spiegelSetzen("eigen"); } });
+R.topf = regler($("regler"), { id: "topf", name: "Höhe des Topfes (Mitte)", min: 2.8, max: 8.5, schritt: 0.05, wert: Z.topf, einheit: "dm",
+  beiAenderung: v => { Z.topf = v; } });
+const knoepfe = {};
+function spiegelSetzen(id) { S = SPIEGEL[id]; for (const k in knoepfe) knoepfe[k].classList.toggle("aktiv", k === id);
+  R.topf.sperren(false); topfSetzen(Math.max(S.c + TOPF_H / 2 + 0.2, Z.topf)); }
+function topfSetzen(y) { Z.topf = Math.max(S.c + TOPF_H / 2 + 0.25, Math.min(8.5, y)); R.topf.setzen(Z.topf); }
+for (const [id, text] of [["f", "Spiegel der AG: f(x) = 0,25x² + 2"], ["g", "Flacher Spiegel: g(x) = 0,125x² + 2"], ["eigen", "Eigener Spiegel"]]) {
+  const k = document.createElement("button"); k.textContent = text; knoepfe[id] = k;
+  k.onclick = () => { schritte.aus(); hilfenAus(); spiegelSetzen(id); };
+  $("presets").appendChild(k);
+}
+function hilfenAus() { Object.assign(zeige, { punkte: false, scheitel: false, rand: false, ring: false, brenn: false }); }
+$("btnKoord").onclick = () => { zeige.koord = !zeige.koord; $("btnKoord").classList.toggle("aktiv", zeige.koord); };
+$("btnStrahlen").onclick = () => { zeige.strahlen = !zeige.strahlen; $("btnStrahlen").classList.toggle("aktiv", zeige.strahlen); };
+$("btnBrenn").onclick = () => topfSetzen(brenn());
+
+let ziehen = false;
+$("szene").addEventListener("pointerdown", e => {
+  const t = szene.topf, r = $("szene").getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (t && px > t.x0 - 20 && px < t.x1 + 20 && py > t.y0 - 15 && py < t.y1 + 15) { ziehen = true; $("szene").setPointerCapture(e.pointerId); }
+});
+$("szene").addEventListener("pointermove", e => {
+  if (!ziehen) return; const K = koordinaten(), r = $("szene").getBoundingClientRect();
+  const y = (K.Y(0) - (e.clientY - r.top)) / K.sk; let neu = Math.round(y * 20) / 20;
+  if (Math.abs(neu - brenn()) < 0.12) neu = brenn();                      // rastet im Brennpunkt ein
+  topfSetzen(neu);
+});
+$("szene").addEventListener("pointerup", () => { ziehen = false; });
+
+/* ---------- Schritt für Schritt: Aufgabe a) bis e) ---------- */
+const rr = t => `<span class="rechnung">${t}</span>`;
+function bereit(id, topf, sonneAn) { hilfenAus(); neuStart(); spiegelSetzen(id); topfSetzen(topf); if (sonneAn) lauf.start(); }
+const schritte = schrittmodus([
+  { text: `<b>Die Situation.</b> Der Spiegel des Solarkochers ist eine Parabel. Gemessen wurden drei Punkte
+     <span class="spiegel">A(−4 | 6), B(1 | 2,25), C(2 | 3)</span> (in dm). Keiner liegt auf der <i>y</i>-Achse – deshalb ist <i>c</i> nicht sofort bekannt.`,
+    vorbereiten: () => { bereit("f", 3, false); zeige.strahlen = false; $("btnStrahlen").classList.remove("aktiv"); zeige.punkte = true; } },
+  { text: `<b>a) Die Gleichung.</b> Einsetzen in <i>f</i>(<i>x</i>) = <i>ax</i>² + <i>bx</i> + <i>c</i>:
+     ${rr("(I) 16<i>a</i> − 4<i>b</i> + <i>c</i> = 6 &nbsp; (II) <i>a</i> + <i>b</i> + <i>c</i> = 2,25 &nbsp; (III) 4<i>a</i> + 2<i>b</i> + <i>c</i> = 3<br>(I) − (II): 15<i>a</i> − 5<i>b</i> = 3,75 (IV) &nbsp;&nbsp; (III) − (II): 3<i>a</i> + <i>b</i> = 0,75 (V)<br>(IV) + 5·(V): 30<i>a</i> = 7,5 → <i>a</i> = 0,25; &nbsp; <i>b</i> = 0; &nbsp; <i>c</i> = 2")}
+     <b class="spiegel"><i>f</i>(<i>x</i>) = 0,25<i>x</i>² + 2</b> &nbsp; Probe mit A: 0,25·16 + 2 = 6 ✓`,
+    vorbereiten: () => { bereit("f", 3, false); zeige.strahlen = false; $("btnStrahlen").classList.remove("aktiv"); zeige.punkte = true; } },
+  { text: `<b>b) Tiefster Punkt und Symmetrie.</b> Scheitelpunkt <b>S(0 | 2)</b>: Der Spiegel ist unten 2 dm (20 cm) über dem Tisch.
+     ${rr("<i>x</i> kommt nur als <i>x</i>² vor (<i>b</i> = 0): &nbsp; <i>f</i>(−2) = <i>f</i>(2) = 0,25·4 + 2 = 3")}
+     Deshalb ist der Spiegel symmetrisch zur <i>y</i>-Achse.`,
+    vorbereiten: () => { bereit("f", 3, false); zeige.strahlen = false; $("btnStrahlen").classList.remove("aktiv"); zeige.scheitel = true; } },
+  { text: `<b>c) Der Rand.</b> 10 dm breit heißt: von <i>x</i> = −5 bis <i>x</i> = 5.
+     ${rr("<i>f</i>(5) = 0,25·5² + 2 = 6,25 + 2 = <b>8,25</b>")}
+     Der Rand liegt <b>8,25 dm</b> (82,5 cm) über dem Tisch.`,
+    vorbereiten: () => { bereit("f", 3, false); zeige.strahlen = false; $("btnStrahlen").classList.remove("aktiv"); zeige.rand = true; } },
+  { text: `<b>d) Der Haltering</b> in 4,25 dm Höhe:
+     ${rr("0,25<i>x</i>² + 2 = 4,25 &nbsp;| −2<br>0,25<i>x</i>² = 2,25 &nbsp;| : 0,25<br><i>x</i>² = 9 &nbsp;→&nbsp; <i>x</i>₁ = −3, &nbsp;<i>x</i>₂ = 3")}
+     Durchmesser: 3 − (−3) = <b>6 dm</b> (60 cm).`,
+    vorbereiten: () => { bereit("f", 3, false); zeige.strahlen = false; $("btnStrahlen").classList.remove("aktiv"); zeige.ring = true; } },
+  { text: `<b>e) Der Brennpunkt (1).</b> Die Sonnenstrahlen kommen senkrecht von oben. Der Spiegel lenkt <b>alle</b> durch einen Punkt:
+     ${rr("1/(4<i>a</i>) = 1/(4·0,25) = 1/1 = 1 &nbsp;→&nbsp; 1 dm über dem tiefsten Punkt<br>Höhe über dem Tisch: 2 + 1 = <b>3 dm</b>")}
+     Steht der Topf dort, treffen ihn alle Strahlen – das Wasser kocht bald.`,
+    vorbereiten: () => { bereit("f", 3, true); zeige.strahlen = true; $("btnStrahlen").classList.add("aktiv"); zeige.brenn = true; } },
+  { text: `<b>Ausprobieren:</b> Jetzt steht der Topf zu hoch (5 dm). Viele Strahlen gehen am Topf vorbei, das Wasser wird nicht heiß genug.
+     Ziehe den Topf zurück in den Brennpunkt oder drücke „Topf in den Brennpunkt“.`,
+    vorbereiten: () => { bereit("f", 5, true); zeige.strahlen = true; $("btnStrahlen").classList.add("aktiv"); } },
+  { text: `<b>e) Der flachere Spiegel (2).</b> Tiefster Punkt wieder 2 dm über dem Tisch, Brennpunkt 2 dm darüber:
+     ${rr("1/(4<i>a</i>) = 2 &nbsp;→&nbsp; 4<i>a</i> = 0,5 &nbsp;→&nbsp; <i>a</i> = 0,125; &nbsp; <i>c</i> = 2")}
+     <b class="flach"><i>g</i>(<i>x</i>) = 0,125<i>x</i>² + 2</b>. Der Topf muss jetzt 4 dm über dem Tisch stehen.`,
+    vorbereiten: () => { bereit("g", 4, true); zeige.strahlen = true; $("btnStrahlen").classList.add("aktiv"); zeige.brenn = true; } },
+]);
+$("btnSchrittmodus").onclick = () => { if (schritte.aktiv) { schritte.aus(); hilfenAus(); } else schritte.an(); };
+
+/* ---------- Erklärung ---------- */
+$("infoText").innerHTML = `
+  <p>Die Simulation gehört zur Aufgabe <b>„Solarkocher“</b>. Der Spiegel der AG hat den Querschnitt
+  <span class="spiegel"><i>f</i>(<i>x</i>) = 0,25<i>x</i>² + 2</span> (in dm). Senkrecht einfallende Sonnenstrahlen werden nach dem
+  Reflexionsgesetz (Einfallswinkel = Ausfallswinkel) gespiegelt. Bei einer Parabel laufen dann alle durch den Brennpunkt,
+  der 1/(4<i>a</i>) über dem tiefsten Punkt liegt.</p>
+  <p>Je mehr Strahlen den Topf treffen, desto schneller wird das Wasser heiß. Mit <b>„Aufgabe Schritt für Schritt“</b> gehst du a) bis e) durch.</p>
+  <p class="klein">Vereinfachungen: Die Strahlen sind zur Anschauung langsam gezeichnet (Licht ist in Wirklichkeit sofort da).
+  Die Erwärmung ist ein einfaches Modell und zeitlich stark verkürzt.</p>`;
+
+/* ---------- Start ---------- */
+const lauf = new Schleife({ dt: 0.005, schritt: physikSchritt,
+  bild: () => { szeneZeichnen(); graphZeichnen(); messwerteZeigen(); } });
+bedienungEinrichten(lauf, { reset: () => { schritte.aus(); hilfenAus(); neuStart(); }, einzel: () => lauf.einzelschritt(0.2) });
+lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "☀ Sonne an"; };
+spiegelSetzen("f"); topfSetzen(3); neuStart();
+</script>
+</body>
+</html>

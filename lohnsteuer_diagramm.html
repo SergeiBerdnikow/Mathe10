@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lohnsteuer – Parabeln im Alltag</title>
+<!--
+  Interaktives Diagramm zur Aufgabe „Lohnsteuer“ (Parabeln im Alltag – E-Kurs 10)
+  Einkommensteuertarif 2026 nach § 32a EStG (Grundtarif, Steuerklasse I, ohne Soli/Kirchensteuer):
+    bis 12.348 €: 0 | bis 17.799 €: (914,51y + 1400)y, y = (x − 12.348)/10.000
+    bis 69.878 €: (173,10z + 2397)z + 1034,87, z = (x − 17.799)/10.000
+    bis 277.825 €: 0,42x − 11.135,63 | darüber: 0,45x − 19.470,38
+  Teil e): f(x) = 0,175x² + 1,75x − 2,6 (x in 10.000 €, f in 1.000 €)
+  Eine Datei, offline, keine externen Einbindungen.
+-->
+<style>
+  :root {
+    --hg: #ffffff; --flaeche: #f4f6f9; --rand: #d5dbe3; --text: #1b2430; --text2: #5a6675;
+    --akzent: #1f5c99;
+    --tarif: #1f5c99; --gerade: #2e7d32; --alles: #c62828; --parabel: #7b3294; --zehn: #d95f02; --grenz: #b35806; --hilf: #d95f02; --norm: #8a96a5; --gut: #2e7d32; --schlecht: #c62828;
+    --schrift: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--flaeche); color: var(--text); font-family: var(--schrift);
+         font-size: 1rem; line-height: 1.4; }
+  body.gross { font-size: 1.25rem; }
+  header { display: flex; align-items: center; gap: .8em; padding: .5em 1em;
+           background: var(--akzent); color: #fff; flex-wrap: wrap; }
+  header h1 { font-size: 1.3em; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  header button { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+  main { display: grid; gap: .8em; padding: .8em;
+         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+         grid-template-areas: "szene steuerung" "regler graph" "info info"; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr);
+           grid-template-areas: "szene" "steuerung" "graph" "regler" "info"; }
+  }
+  .karte { background: var(--hg); border: 1px solid var(--rand); border-radius: 10px; padding: .7em; min-width: 0; }
+  .karte h2 { font-size: 1em; margin: 0 0 .4em; color: var(--text2); font-weight: 600; }
+  #szeneKarte { grid-area: szene; } #graphKarte { grid-area: graph; }
+  #steuerKarte { grid-area: steuerung; } #reglerKarte { grid-area: regler; } #infoKarte { grid-area: info; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  #szene { aspect-ratio: 1.5 / 1; min-height: 320px; max-height: 76vh; }
+  #graph { height: 40vh; min-height: 240px; }
+  button { font: inherit; font-size: 1em; padding: .45em .9em; min-height: 2.6em; min-width: 2.6em;
+           border-radius: 8px; border: 1px solid var(--rand); background: var(--hg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--akzent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.haupt { background: var(--akzent); color: #fff; border-color: var(--akzent); font-weight: 600; }
+  button.aktiv { outline: 3px solid var(--akzent); outline-offset: 1px; }
+  .zeile { display: flex; flex-wrap: wrap; gap: .5em; align-items: center; }
+  .messwerte { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: .3em .8em;
+               margin-top: .6em; font-variant-numeric: tabular-nums; }
+  .messwerte div { background: var(--flaeche); border-radius: 6px; padding: .25em .5em; }
+  .messwerte b { font-weight: 600; }
+  .regler { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: .6em 1.4em; }
+  .regler label { display: block; font-weight: 600; }
+  .regler .wert { float: right; font-weight: 400; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; height: 2.2em; accent-color: var(--akzent); }
+  .presets { margin-top: .7em; }
+  #schritte { display: none; margin-top: .6em; padding: .6em .8em; border-left: 5px solid var(--akzent);
+              background: #eef4fb; border-radius: 6px; }
+  #schritte.an { display: block; }
+  #schrittText { font-size: 1.1em; margin: .2em 0 .5em; }
+  #schrittText .rechnung { display: block; margin: .3em 0 .3em 1em; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .gleichung { font-size: 1.25em; text-align: center; margin: .4em 0; font-variant-numeric: tabular-nums; min-height: 1.6em; }
+  ol.wandel { margin: .3em 0 0; padding-left: 1.4em; }
+  ol.wandel li { padding: .1em .3em; border-radius: 5px; color: var(--text2); }
+  ol.wandel li.jetzt { background: #fdebd9; color: var(--text); font-weight: 600; }
+  ol.wandel li.fertig { color: var(--text); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .klein { color: var(--text2); font-size: .85em; }
+  kbd { border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em;
+        font-size: .85em; background: var(--flaeche); }
+  .tarif { color: var(--tarif); font-weight: 600; } .gerade { color: var(--gerade); font-weight: 600; }
+  .alles { color: var(--alles); font-weight: 600; } .parabel { color: var(--parabel); font-weight: 600; }
+  .grenz { color: var(--grenz); font-weight: 600; } .hilf { color: var(--hilf); font-weight: 600; }
+</style>
+<style>
+  .gleichungsZeile { font-size: 1.15em; margin: .4em 0 .2em; font-variant-numeric: tabular-nums; }
+  #graph { height: 34vh; min-height: 230px; }
+  #szene { cursor: ew-resize; }
+  .eingabe { display: flex; flex-wrap: wrap; align-items: center; gap: .5em; margin-bottom: .6em; font-weight: 600; }
+  .eingabe input[type=number] { font: inherit; font-size: 1.1em; width: 8.5em; padding: .3em .5em; border-radius: 8px;
+    border: 1px solid var(--rand); font-variant-numeric: tabular-nums; }
+  .gruppe { margin-top: .7em; } .gruppe > b { display: block; margin-bottom: .3em; color: var(--text2); font-weight: 600; }
+  #schrittText details { margin-top: .5em; background: #fff; border-radius: 6px; padding: .3em .6em; }
+  #schrittText details[open] { border-left: 4px solid var(--gut); }
+  .loesung { font-variant-numeric: tabular-nums; line-height: 1.6; margin-top: .3em; }
+  .farbe { display: inline-block; width: 1.6em; height: .35em; border-radius: 2px; vertical-align: middle; margin-right: .3em; }
+</style>
+<body>
+<header>
+  <h1 id="titel">Lohnsteuer 2026 – das Steuer-Diagramm zum Ablesen</h1>
+  <button id="btnGross" title="Große Schrift für den Beamer (G)">Beamer-Ansicht</button>
+  <button id="btnVoll" title="Vollbild (F)">Vollbild</button>
+</header>
+
+<main>
+  <section class="karte" id="szeneKarte">
+    <h2>Einkommensteuer für ein Jahr (Steuerklasse I, 2026)</h2>
+    <canvas id="szene" aria-label="Graph der Einkommensteuer mit Ablese-Linie"></canvas>
+    <div class="gleichungsZeile" id="formel"></div>
+    <p class="klein" style="margin:.2em 0 0">Tipp: Die senkrechte Ablese-Linie kann man mit Maus oder Finger ziehen.
+      Mit <kbd>←</kbd> und <kbd>→</kbd> geht es in 500-€-Schritten.</p>
+  </section>
+
+  <section class="karte" id="steuerKarte">
+    <label class="eingabe" for="einkommenEin">Zu versteuerndes Einkommen x:
+      <span><input type="number" id="einkommenEin" min="0" max="320000" step="1" value="40000"> €</span></label>
+    <div class="regler" id="regler"></div>
+    <div class="zeile" style="margin-top:.5em">
+      <button id="btnStart" class="haupt" title="Start/Pause (Leertaste)">▶ Einkommen durchlaufen</button>
+      <button id="btnSchritt" title="500 € mehr (→)">+500 €</button>
+      <button id="btnReset" title="Zurücksetzen (R)">↺ Zurücksetzen</button>
+      <button id="btnLangsam" title="Zeitlupe umschalten (L)">Zeitlupe: aus</button>
+    </div>
+    <div class="messwerte" id="messwerte"></div>
+    <div class="zeile presets" style="margin-top:.6em">
+      <button id="btnSchrittmodus" class="haupt">Aufgabe Schritt für Schritt</button>
+    </div>
+    <div id="schritte">
+      <div class="zeile" style="justify-content:space-between">
+        <b id="schrittNr"></b>
+        <span class="zeile"><button id="btnZurueck">◀ zurück</button><button id="btnWeiter" class="haupt">weiter ▶</button></span>
+      </div>
+      <div id="schrittText"></div>
+    </div>
+  </section>
+
+  <section class="karte" id="graphKarte">
+    <h2>Wie viel Prozent? Anteil am Einkommen und Steuer auf den nächsten Euro</h2>
+    <canvas id="graph" aria-label="Durchschnittssteuersatz und Grenzsteuersatz"></canvas>
+    <p class="klein" style="margin:.4em 0 0"><span class="farbe" style="background:var(--tarif)"></span><b>Anteil am Einkommen</b>
+      = Steuer : Einkommen (Durchschnittssteuersatz).
+      <span class="farbe" style="background:var(--grenz)"></span><b>Steuer auf den nächsten Euro</b> (Grenzsteuersatz, Steigung des Graphen).
+      Die 42 % gelten nur für den nächsten Euro, nicht für das ganze Einkommen.</p>
+  </section>
+
+  <section class="karte" id="reglerKarte">
+    <h2>Werkzeuge</h2>
+    <div class="gruppe"><b>Personen aus der Aufgabe</b><div class="zeile" id="presets"></div></div>
+    <div class="gruppe"><b>Einblenden</b><div class="zeile" id="ueberlagerungen"></div></div>
+    <div class="gruppe"><b>Ausschnitt</b><div class="zeile" id="zoomKnoepfe"></div></div>
+    <div class="gruppe"><b>Einheiten auf den Achsen</b><div class="zeile">
+      <button id="btnEuro" class="aktiv">Euro</button>
+      <button id="btnEinheit">x in 10.000 €, Steuer in 1.000 € (Teil e, f)</button></div></div>
+    <div class="zeile presets"><button id="btnPNG" title="Bild speichern">Bild speichern (PNG)</button></div>
+  </section>
+
+  <section class="karte" id="infoKarte">
+    <details>
+      <summary>Was zeigt das Diagramm?</summary>
+      <div id="infoText"></div>
+    </details>
+    <p class="klein">Tastatur: <kbd>Leertaste</kbd> Einkommen durchlaufen/Pause · <kbd>R</kbd> Zurücksetzen ·
+      <kbd>←</kbd> <kbd>→</kbd> 500 € weniger/mehr · <kbd>L</kbd> Zeitlupe · <kbd>G</kbd> Beamer-Ansicht · <kbd>F</kbd> Vollbild</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   BAUKASTEN – allgemein verwendbar, in neuen Simulationen unverändert lassen
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Schriftgröße auf der Leinwand – wächst in der Beamer-Ansicht mit */
+const fs = px => Math.round(px * (document.body.classList.contains("gross") ? 1.3 : 1));
+
+/** Zahl deutsch formatieren: fmt(1.234, 2, "m") -> "1,23 m" */
+function fmt(x, stellen = 2, einheit = "") {
+  if (!isFinite(x)) return "–";
+  const s = x.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  return einheit ? s + " " + einheit : s;
+}
+
+/** Canvas mit scharfer Darstellung (HiDPI). Liefert {ctx, b, h} in CSS-Pixeln, passt sich an. */
+function leinwand(canvas, beiGroesse) {
+  const obj = { canvas, ctx: canvas.getContext("2d"), b: 0, h: 0 };
+  const anpassen = (melden = true) => {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    obj.b = Math.max(1, r.width); obj.h = Math.max(1, r.height);
+    canvas.width = Math.round(obj.b * dpr); canvas.height = Math.round(obj.h * dpr);
+    obj.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (melden && beiGroesse) beiGroesse();
+  };
+  anpassen(false);                       // Größe sofort setzen, Neuzeichnen erst bei Änderungen
+  new ResizeObserver(() => anpassen()).observe(canvas);
+  return obj;
+}
+
+/** Pfeil zeichnen (für Kräfte, Geschwindigkeiten, Maße) */
+function pfeil(ctx, x1, y1, x2, y2, farbe, breite = 3, spitze = 12) {
+  const w = Math.atan2(y2 - y1, x2 - x1), l = Math.hypot(x2 - x1, y2 - y1);
+  if (l < 1) return;
+  const s = Math.min(spitze, l * 0.6);
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - s * 0.7 * Math.cos(w), y2 - s * 0.7 * Math.sin(w)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(w - 0.4), y2 - s * Math.sin(w - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(w + 0.4), y2 - s * Math.sin(w + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Text mit Hintergrund (gut lesbar über Linien) */
+function beschriftung(ctx, text, x, y, { farbe = "#1b2430", groesse = 15, ausrichtung = "center",
+                                        grundlinie = "middle", fett = false, hintergrund = true } = {}) {
+  ctx.save(); groesse = fs(groesse); ctx.font = `${fett ? "600 " : ""}${groesse}px ${css("--schrift")}`;
+  ctx.textAlign = ausrichtung; ctx.textBaseline = grundlinie;
+  const m = ctx.measureText(text), pad = 3;
+  let x0 = ausrichtung === "center" ? x - m.width / 2 : ausrichtung === "right" ? x - m.width : x;
+  if (hintergrund) { ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillRect(x0 - pad, y - groesse * 0.6 - pad, m.width + 2 * pad, groesse * 1.2 + 2 * pad); }
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y); ctx.restore();
+}
+
+/** "Schöne" Achsenteilung */
+function teilung(min, max, ziel = 6) {
+  const roh = (max - min) / ziel, p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const f = roh / p, schritt = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const t = []; for (let v = Math.ceil(min / schritt) * schritt; v <= max + 1e-9 * schritt; v += schritt) t.push(v);
+  return { t, schritt, stellen: Math.max(0, -Math.floor(Math.log10(schritt) + 1e-9)) };
+}
+
+/**
+ * Live-Diagramm (Zeitreihen). Beispiel:
+ *   const d = new Diagramm(canvas, {xName:"t", xEinheit:"s", yName:"x", yEinheit:"m", fenster:10});
+ *   d.reihe("x", "Auslenkung", "#1f5c99");  d.punkt("x", t, x);  d.zeichnen();
+ * fenster = sichtbare Zeitspanne (mitlaufend); yMin/yMax fest oder automatisch.
+ */
+class Diagramm {
+  constructor(canvas, opt) {
+    this.o = Object.assign({ xName: "t", xEinheit: "s", yName: null, yEinheit: "", fenster: 10,
+                             yMin: null, yMax: null }, opt);
+    this.reihen = new Map(); this.lw = leinwand(canvas, () => this.zeichnen());
+  }
+  /** name = Text für den Knopf, achse = Achsenbeschriftung, z. B. "s in cm" */
+  reihe(id, name, farbe, sichtbar = true, achse = name) { this.reihen.set(id, { name, farbe, sichtbar, achse, d: [] }); }
+  punkt(id, x, y) { const r = this.reihen.get(id); r.d.push([x, y]); if (r.d.length > 20000) r.d.splice(0, 5000); }
+  leeren() { for (const r of this.reihen.values()) r.d = []; }
+  achsen(opt) { Object.assign(this.o, opt); }
+  zeichnen() {
+    const { ctx, b, h } = this.lw, o = this.o, R = { l: 62, r: 14, o: 18, u: 46 };
+    ctx.clearRect(0, 0, b, h);
+    const sicht = [...this.reihen.values()].filter(r => r.sichtbar);
+    let xMax = 0; for (const r of sicht) if (r.d.length) xMax = Math.max(xMax, r.d[r.d.length - 1][0]);
+    const x1 = Math.max(o.fenster, xMax), x0 = x1 - o.fenster;
+    let y0 = o.yMin, y1 = o.yMax;
+    if (y0 === null || y1 === null) {
+      let lo = Infinity, hi = -Infinity;
+      for (const r of sicht) for (const [x, y] of r.d) if (x >= x0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (!isFinite(lo)) { lo = -1; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      const rand = 0.1 * (hi - lo);
+      if (y0 === null) y0 = lo - rand; if (y1 === null) y1 = hi + rand;
+    }
+    const X = x => R.l + (x - x0) / (x1 - x0) * (b - R.l - R.r);
+    const Y = y => h - R.u - (y - y0) / (y1 - y0) * (h - R.o - R.u);
+    ctx.font = `${fs(13)}px ${css("--schrift")}`; ctx.lineWidth = 1;
+    const tx = teilung(x0, x1, Math.max(3, Math.floor(b / 90))), ty = teilung(y0, y1, Math.max(3, Math.floor(h / 55)));
+    ctx.strokeStyle = "#e3e7ec"; ctx.fillStyle = "#5a6675";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (const v of tx.t) { ctx.beginPath(); ctx.moveTo(X(v), R.o); ctx.lineTo(X(v), h - R.u); ctx.stroke();
+                            ctx.fillText(fmt(v, tx.stellen), X(v), h - R.u + 5); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const v of ty.t) { ctx.beginPath(); ctx.moveTo(R.l, Y(v)); ctx.lineTo(b - R.r, Y(v)); ctx.stroke();
+                            ctx.fillText(fmt(v, ty.stellen), R.l - 6, Y(v)); }
+    // Achsen (Nulllinie hervorheben)
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const yNull = (y0 < 0 && y1 > 0) ? Y(0) : h - R.u;
+    ctx.moveTo(R.l, yNull); ctx.lineTo(b - R.r, yNull); ctx.moveTo(R.l, R.o); ctx.lineTo(R.l, h - R.u); ctx.stroke();
+    ctx.fillStyle = "#1b2430"; ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${o.xName} in ${o.xEinheit}`, b - R.r, h - 4);
+    ctx.save(); ctx.translate(14, R.o); ctx.rotate(-Math.PI / 2); ctx.textAlign = "right"; ctx.textBaseline = "top";
+    const yText = o.yName ? (o.yEinheit ? `${o.yName} in ${o.yEinheit}` : o.yName) : sicht.map(r => r.achse).join(",  ");
+    ctx.fillText(yText, 0, 0); ctx.restore();
+    // Kurven
+    ctx.save(); ctx.beginPath(); ctx.rect(R.l, R.o, b - R.l - R.r, h - R.o - R.u); ctx.clip();
+    for (const r of sicht) {
+      ctx.strokeStyle = r.farbe; ctx.lineWidth = 2.5; ctx.beginPath(); let an = false;
+      for (const [x, y] of r.d) { if (x < x0 - 1e-9) continue; an ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)); an = true; }
+      ctx.stroke();
+      if (r.d.length) { const [x, y] = r.d[r.d.length - 1]; ctx.fillStyle = r.farbe;
+                        ctx.beginPath(); ctx.arc(X(x), Y(y), 4.5, 0, 7); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  /** Knöpfe zum Ein-/Ausblenden der Kurven in ein Element einfügen */
+  auswahl(el) {
+    el.innerHTML = "";
+    for (const [id, r] of this.reihen) {
+      const k = document.createElement("button");
+      k.innerHTML = `<span style="color:${r.farbe}">━━</span> ${r.name}`;
+      k.classList.toggle("aktiv", r.sichtbar);
+      k.onclick = () => { r.sichtbar = !r.sichtbar; k.classList.toggle("aktiv", r.sichtbar); this.zeichnen(); };
+      el.appendChild(k);
+    }
+  }
+}
+
+/**
+ * Energiebalken. Beispiel:
+ *   const eb = new Balken(canvas, [{id:"pot", name:"E_Spann", farbe:css("--e-pot")}, ...], "J");
+ *   eb.zeichnen({pot: 0.2, kin: 0.1, ges: 0.3}, maxWert);
+ */
+class Balken {
+  constructor(canvas, arten, einheit = "J") { this.arten = arten; this.einheit = einheit;
+    this.lw = leinwand(canvas, () => this.letzte && this.zeichnen(...this.letzte)); }
+  zeichnen(werte, max) {
+    this.letzte = [werte, max];
+    const { ctx, b, h } = this.lw, n = this.arten.length, R = { l: 10, r: 10, o: 26, u: 30 };
+    ctx.clearRect(0, 0, b, h);
+    const bw = (b - R.l - R.r) / n, H = h - R.o - R.u, sk = max > 0 ? H / max : 0;
+    ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(R.l, h - R.u); ctx.lineTo(b - R.r, h - R.u); ctx.stroke();
+    this.arten.forEach((a, i) => {
+      const v = Math.max(0, werte[a.id] || 0), x = R.l + i * bw + bw * 0.18, w = bw * 0.64;
+      ctx.fillStyle = a.farbe; ctx.fillRect(x, h - R.u - v * sk, w, v * sk);
+      ctx.font = `600 ${fs(14)}px ${css("--schrift")}`; ctx.fillStyle = "#1b2430"; ctx.textAlign = "center";
+      ctx.textBaseline = "top"; ctx.fillText(a.name, x + w / 2, h - R.u + 6);
+      ctx.textBaseline = "bottom"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+      ctx.fillText(fmt(werte[a.id] || 0, a.stellen ?? 2, this.einheit), x + w / 2, Math.max(R.o + 2, h - R.u - v * sk - 4));
+    });
+  }
+}
+
+/** Regler erzeugen. Liefert Objekt mit .wert; ruft beiAenderung(wert) auf. */
+function regler(container, { id, name, min, max, schritt, wert, einheit = "", stellen = 2, beiAenderung }) {
+  const box = document.createElement("div");
+  box.innerHTML = `<label for="r_${id}">${name} <span class="wert" id="w_${id}"></span></label>
+                   <input type="range" id="r_${id}" min="${min}" max="${max}" step="${schritt}" value="${wert}">`;
+  container.appendChild(box);
+  const inp = box.querySelector("input"), anz = box.querySelector(".wert");
+  const r = { get wert() { return parseFloat(inp.value); },
+              setzen(v) { inp.value = v; anz.textContent = fmt(parseFloat(inp.value), stellen, einheit); },
+              sperren(an) { inp.disabled = an; } };
+  r.setzen(wert);
+  inp.addEventListener("input", () => { anz.textContent = fmt(r.wert, stellen, einheit); beiAenderung && beiAenderung(r.wert); });
+  return r;
+}
+
+/** Datei aus der Seite heraus speichern (funktioniert offline) */
+function speichern(name, inhalt, typ) {
+  const a = document.createElement("a");
+  a.href = typeof inhalt === "string" ? URL.createObjectURL(new Blob([inhalt], { type: typ })) : inhalt;
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/** Mehrere Canvas nebeneinander als ein PNG speichern */
+function alsPNG(name, canvasListe) {
+  const b = canvasListe.reduce((s, c) => s + c.width, 0), h = Math.max(...canvasListe.map(c => c.height));
+  const z = document.createElement("canvas"); z.width = b; z.height = h;
+  const ctx = z.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  let x = 0; for (const c of canvasListe) { ctx.drawImage(c, x, 0); x += c.width; }
+  speichern(name, z.toDataURL("image/png"));
+}
+
+/**
+ * Simulationsschleife mit festem Zeitschritt (physikalisch sauber, unabhängig von der Bildrate).
+ *   const lauf = new Schleife({dt: 0.001, schritt: dt => {...}, bild: () => {...}});
+ *   lauf.start(); lauf.pause(); lauf.tempo = 0.2 (Zeitlupe)
+ */
+class Schleife {
+  constructor({ dt, schritt, bild, beiStatus }) {
+    Object.assign(this, { dt, schritt, bild, beiStatus, laeuft: false, tempo: 1, rest: 0, tAlt: 0 });
+    const tick = tJetzt => {
+      if (this.laeuft) {
+        let echt = Math.min(0.1, (tJetzt - this.tAlt) / 1000);   // nach Tab-Wechsel nicht springen
+        this.rest += echt * this.tempo;
+        let n = 0; while (this.rest >= this.dt && n < 20000) { this.schritt(this.dt); this.rest -= this.dt; n++; }
+      }
+      this.tAlt = tJetzt; this.bild(); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  start() { this.laeuft = true; this.beiStatus && this.beiStatus(true); }
+  pause() { this.laeuft = false; this.beiStatus && this.beiStatus(false); }
+  umschalten() { this.laeuft ? this.pause() : this.start(); }
+  einzelschritt(dauer) { this.pause(); const n = Math.round(dauer / this.dt); for (let i = 0; i < n; i++) this.schritt(this.dt); }
+}
+
+/**
+ * Schritt-für-Schritt-Modus zum Besprechen im Plenum.
+ *   schrittmodus([{text:"…", vorbereiten: () => {...}}, ...])
+ */
+function schrittmodus(schritte) {
+  let i = 0; const box = $("schritte");
+  const zeigen = () => { $("schrittNr").textContent = `Schritt ${i + 1} von ${schritte.length}`;
+    $("schrittText").innerHTML = schritte[i].text; schritte[i].vorbereiten && schritte[i].vorbereiten();
+    $("btnZurueck").disabled = i === 0; $("btnWeiter").disabled = i === schritte.length - 1; };
+  $("btnZurueck").onclick = () => { if (i > 0) { i--; zeigen(); } };
+  $("btnWeiter").onclick = () => { if (i < schritte.length - 1) { i++; zeigen(); } };
+  return { an() { box.classList.add("an"); i = 0; zeigen(); }, aus() { box.classList.remove("an"); },
+           get aktiv() { return box.classList.contains("an"); } };
+}
+
+/** Vollbild, Beamer-Ansicht, Tastatur */
+function bedienungEinrichten(lauf, { reset, einzel }) {
+  $("btnVoll").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $("btnGross").onclick = () => { document.body.classList.toggle("gross"); $("btnGross").classList.toggle("aktiv"); };
+  $("btnStart").onclick = () => lauf.umschalten();
+  $("btnReset").onclick = reset;
+  $("btnSchritt").onclick = einzel;
+  $("btnLangsam").onclick = () => { lauf.tempo = lauf.tempo === 1 ? 0.2 : 1;
+    $("btnLangsam").textContent = `Zeitlupe: ${lauf.tempo === 1 ? "aus" : "an (×0,2)"}`;
+    $("btnLangsam").classList.toggle("aktiv", lauf.tempo !== 1); };
+  lauf.beiStatus = an => { $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Start"; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    const k = e.key.toLowerCase();
+    if (k === " ") { e.preventDefault(); lauf.umschalten(); }
+    else if (k === "r") reset(); else if (k === "arrowright") einzel();
+    else if (k === "l") $("btnLangsam").click(); else if (k === "g") $("btnGross").click();
+    else if (k === "f") $("btnVoll").click();
+  });
+}
+
+/* =====================================================================
+   MODELL – Einkommensteuertarif 2026 (§ 32a EStG, Grundtarif)
+   ===================================================================== */
+const GF = 12348, G2 = 17799, G3 = 69878, G4 = 277825;
+/** Steuer ohne Rundung (für den Graphen) */
+function steuerGenau(x) {
+  if (x <= GF) return 0;
+  if (x <= G2) { const y = (x - GF) / 1e4; return (914.51 * y + 1400) * y; }
+  if (x <= G3) { const z = (x - G2) / 1e4; return (173.10 * z + 2397) * z + 1034.87; }
+  if (x <= G4) return 0.42 * x - 11135.63;
+  return 0.45 * x - 19470.38;
+}
+/** Steuer wie im Gesetz: Einkommen und Steuer auf volle Euro abrunden */
+const steuer = x => Math.floor(steuerGenau(Math.floor(x)) + 1e-9);
+const bereich = x => x <= GF ? 1 : x <= G2 ? 2 : x <= G3 ? 3 : x <= G4 ? 4 : 5;
+/** Grenzsteuersatz = Steigung des Graphen */
+function grenz(x) {
+  if (x <= GF) return 0;
+  if (x <= G2) return (2 * 914.51 * (x - GF) / 1e4 + 1400) / 1e4;
+  if (x <= G3) return (2 * 173.10 * (x - G2) / 1e4 + 2397) / 1e4;
+  return x <= G4 ? 0.42 : 0.45;
+}
+/** Parabel aus Teil e): u in 10.000 €, Ergebnis in 1.000 € */
+const fPar = u => 0.175 * u * u + 1.75 * u - 2.6;
+const parEuro = x => 1000 * fPar(x / 1e4);
+const geradeB = x => 0.42 * x - 11136;
+const U10 = -5 + Math.sqrt(97);              // f(u) = 10  ->  u ≈ 4,85
+
+const BEREICHE = [
+  { a: 0, b: GF, farbe: "#e9f5ea", lang: "1: steuerfrei", kurz: "1" },
+  { a: GF, b: G2, farbe: "#fff6dc", lang: "2: Parabel", kurz: "2" },
+  { a: G2, b: G3, farbe: "#fdebd9", lang: "3: Parabel", kurz: "3" },
+  { a: G3, b: G4, farbe: "#e3eefa", lang: "4: Gerade (42 %)", kurz: "4" },
+  { a: G4, b: 1e9, farbe: "#ece6f5", lang: "5: Gerade (45 %)", kurz: "5" }
+];
+const ZOOMS = {
+  lupe:  { xmax: 20000,  ymax: 1800,   name: "Lupe: 0 bis 20.000 €" },
+  ef:    { xmax: 80000,  ymax: 25000,  name: "0 bis 80.000 €" },
+  std:   { xmax: 120000, ymax: 40000,  name: "0 bis 120.000 €" },
+  alles: { xmax: 320000, ymax: 130000, name: "0 bis 320.000 €" }
+};
+const PERSONEN = [
+  { id: "mia", name: "Mia", teil: "a", x: 11000, zoom: "lupe" },
+  { id: "ole", name: "Ole", teil: "d", x: 15348, zoom: "lupe" },
+  { id: "becker", name: "Herr Becker", teil: "c", x: 80000, zoom: "std" },
+  { id: "tom", name: "Tom", teil: "g", x: 80000, zoom: "std" }
+];
+
+/* ---------- Zustand ---------- */
+let xc = 40000, zoomName = "std", einheiten = false, person = null;
+const ansicht = { xmax: 120000, ymax: 40000 };
+const zeige = {};
+function hilfenAus() {
+  Object.assign(zeige, { bereiche: true, pq: false, gerade: false, dreieck: false, alles: false, differenz: false,
+                         abc: false, parabel: false, zehn: false, schnitt: false });
+}
+hilfenAus();
+
+/* ---------- Hilfsfunktionen ---------- */
+const MINUS = "−";
+const zahl = (v, n = 2) => fmt(v, n).replace("-", MINUS);
+const euro = v => zahl(v, 0) + " €";
+function kreis(ctx, x, y, r, farbe, ring = true) {
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = farbe; ctx.fill();
+  if (ring) { ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke(); } ctx.restore();
+}
+function linie(ctx, pts, farbe, breite = 2, strich = []) {
+  ctx.save(); ctx.strokeStyle = farbe; ctx.lineWidth = breite; ctx.setLineDash(strich); ctx.lineJoin = "round";
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.restore();
+}
+/** Wertekästchen mit farbigem Hintergrund (für die Achsen) */
+function marke(ctx, text, x, y, farbe, ausrichtung = "center") {
+  ctx.save(); const g = fs(14); ctx.font = `600 ${g}px ${css("--schrift")}`;
+  const w = ctx.measureText(text).width + 10, h = g + 8;
+  let x0 = ausrichtung === "center" ? x - w / 2 : ausrichtung === "right" ? x - w : x;
+  ctx.fillStyle = farbe; ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, 5); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(text, x0 + 5, y + 1);
+  ctx.restore();
+}
+/** Achsenwerte in der gewählten Einheit */
+const fx = () => einheiten ? 1e4 : 1, fy = () => einheiten ? 1e3 : 1;
+function xText(x) { return einheiten ? zahl(x / 1e4, 2) : euro(x); }
+function yText(y) { return einheiten ? zahl(y / 1e3, 2) : euro(y); }
+function punktText(n, x, y) {
+  return einheiten ? `${n}(${zahl(x / 1e4, 0)} | ${zahl(y / 1e3, 1)})` : `${n}(${zahl(x, 0)} | ${zahl(y, 0)})`;
+}
+
+/* ---------- Leinwände ---------- */
+const SZ = leinwand($("szene"));
+const GR = leinwand($("graph"));
+let rS = null;   // Rahmen des Hauptdiagramms (für das Ziehen)
+
+function rahmen(L, ctx, yLabels, oben) {
+  ctx.font = `${fs(14)}px ${css("--schrift")}`;
+  const lb = Math.max(...yLabels.map(t => ctx.measureText(t).width)) + 16;
+  const r = { x0: lb, x1: L.b - fs(14) * 2.8, y0: oben, y1: L.h - fs(14) * 3.3 };
+  r.px = x => r.x0 + x / ansicht.xmax * (r.x1 - r.x0);
+  r.xv = p => (p - r.x0) / (r.x1 - r.x0) * ansicht.xmax;
+  return r;
+}
+
+/* ---------- Hauptdiagramm ---------- */
+function zeichneSzene() {
+  const { ctx, b, h } = SZ; ctx.clearRect(0, 0, b, h);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  const tx = teilung(0, ansicht.xmax / fx(), 8), ty = teilung(0, ansicht.ymax / fy(), 7);
+  const yl = ty.t.map(t => zahl(t, ty.stellen));
+  const r = rahmen(SZ, ctx, yl, fs(14) * 2); rS = r;
+  ctx.font = `600 ${fs(14)}px ${css("--schrift")}`;
+  r.x0 = Math.max(r.x0, ctx.measureText(einheiten ? zahl(ansicht.ymax / 1e3, 2) : euro(ansicht.ymax)).width + 18);
+  r.py = y => r.y1 - y / ansicht.ymax * (r.y1 - r.y0);
+  const { px, py } = r;
+
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); ctx.clip();
+  // Bereiche
+  if (zeige.bereiche) for (const z of BEREICHE) {
+    const a = px(z.a), e = Math.min(px(z.b), r.x1); if (a >= r.x1) continue;
+    ctx.fillStyle = z.farbe; ctx.fillRect(a, r.y0, e - a, r.y1 - r.y0);
+  }
+  // Gitter
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1;
+  for (const t of tx.t) { const p = px(t * fx()); ctx.beginPath(); ctx.moveTo(p, r.y0); ctx.lineTo(p, r.y1); ctx.stroke(); }
+  for (const t of ty.t) { const p = py(t * fy()); ctx.beginPath(); ctx.moveTo(r.x0, p); ctx.lineTo(r.x1, p); ctx.stroke(); }
+  // Bereichsgrenzen
+  if (zeige.bereiche) for (const g of [GF, G2, G3, G4]) {
+    if (px(g) < r.x1) linie(ctx, [[px(g), r.y0], [px(g), r.y1]], "#9aa7b6", 1, [3, 4]);
+  }
+
+  const N = 700, probe = (f, a, e) => { const p = []; for (let i = 0; i <= N; i++) { const x = a + (e - a) * i / N; p.push([px(x), py(f(x))]); } return p; };
+  linie(ctx, probe(steuerGenau, 0, ansicht.xmax), css("--tarif"), 4);
+  // 42 % auf alles
+  if (zeige.alles) linie(ctx, probe(x => 0.42 * x, 0, ansicht.xmax), css("--alles"), 2.5, [10, 6]);
+  // Gerade aus b)
+  if (zeige.gerade) {
+    const a = 11136 / 0.42;
+    linie(ctx, probe(geradeB, a, ansicht.xmax), css("--gerade"), 2.5, [10, 6]);
+  }
+  // Parabel aus e)
+  if (zeige.parabel) {
+    const a = 1e4 * (-5 + Math.sqrt(25 + 2.6 / 0.175));   // Nullstelle
+    linie(ctx, probe(parEuro, a, ansicht.xmax), css("--parabel"), 2.5, [10, 6]);
+  }
+  // 10.000-€-Linie
+  if (zeige.zehn) linie(ctx, [[r.x0, py(10000)], [r.x1, py(10000)]], css("--zehn"), 2.5, [4, 4]);
+  ctx.restore();
+
+  // Achsen
+  ctx.save(); ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(r.x0, r.y0 - 6); ctx.lineTo(r.x0, r.y1); ctx.lineTo(r.x1 + 6, r.y1); ctx.stroke(); ctx.restore();
+  pfeil(ctx, r.x0, r.y0 + 4, r.x0, r.y0 - 12, "#1b2430", 1.5, 9);
+  ctx.save(); ctx.fillStyle = "#1b2430"; ctx.font = `${fs(14)}px ${css("--schrift")}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  tx.t.forEach(t => ctx.fillText(zahl(t, tx.stellen), px(t * fx()), r.y1 + 5));
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  ty.t.forEach((t, i) => ctx.fillText(yl[i], r.x0 - 7, py(t * fy())));
+  ctx.restore();
+  beschriftung(ctx, einheiten ? "Einkommen x in 10.000 €" : "zu versteuerndes Einkommen x in €",
+               r.x1, r.y1 + fs(14) * 2.55, { ausrichtung: "right", groesse: 14, fett: true });
+  beschriftung(ctx, einheiten ? "Steuer in 1.000 €" : "Steuer S in € (pro Jahr)",
+               r.x0 + 10, r.y0 - fs(14) * 0.9, { ausrichtung: "left", groesse: 14, fett: true });
+
+  // Bereichsnamen oben
+  if (zeige.bereiche) {
+    ctx.save(); ctx.font = `600 ${fs(13)}px ${css("--schrift")}`;
+    for (const z of BEREICHE) {
+      const a = px(z.a), e = Math.min(px(z.b), r.x1), w = e - a; if (a >= r.x1 - 10) continue;
+      const t = ctx.measureText(z.lang).width + 8 < w ? z.lang : (w > 16 ? z.kurz : "");
+      if (t) beschriftung(ctx, t, (a + e) / 2, r.y0 + fs(13), { groesse: 13, fett: true, farbe: "#46515f", hintergrund: false });
+    }
+    ctx.restore();
+  }
+
+  // Punkte und Hilfen
+  const sichtbar = (x, y) => x <= ansicht.xmax * 1.001 && y <= ansicht.ymax;
+  if (zeige.pq) {
+    for (const [n, x, y] of [["P", 90000, 26664], ["Q", 100000, 30864]]) if (sichtbar(x, y)) {
+      kreis(ctx, px(x), py(y), 6, css("--gerade"));
+      beschriftung(ctx, punktText(n, x, y), px(x) - 10, py(y) - 16, { ausrichtung: "right", farbe: css("--gerade"), fett: true, groesse: 14 });
+    }
+  }
+  if (zeige.dreieck && sichtbar(100000, 30864)) {
+    const g = css("--gerade");
+    linie(ctx, [[px(90000), py(26664)], [px(100000), py(26664)], [px(100000), py(30864)]], g, 2);
+    beschriftung(ctx, einheiten ? "+1" : "+10.000 €", px(95000), py(26664) + 14, { farbe: g, groesse: 13, fett: true });
+    beschriftung(ctx, einheiten ? "+4,2" : "+4.200 €", px(100000) + 6, py(28764), { ausrichtung: "left", farbe: g, groesse: 13, fett: true });
+  }
+  if (zeige.abc) {
+    for (const [n, x, y] of [["A", 20000, 1600], ["B", 40000, 7200], ["C", 60000, 14200]]) if (sichtbar(x, y)) {
+      kreis(ctx, px(x), py(y), 6.5, css("--parabel"));
+      beschriftung(ctx, punktText(n, x, y), px(x) - 10, py(y) - 16, { ausrichtung: "right", farbe: css("--parabel"), fett: true, groesse: 14 });
+    }
+  }
+  if (zeige.zehn && zeige.schnitt && zeige.parabel) {
+    const x = U10 * 1e4, p = css("--parabel");
+    linie(ctx, [[px(x), py(10000)], [px(x), r.y1]], p, 2, [4, 4]);
+    kreis(ctx, px(x), py(10000), 7, p);
+    beschriftung(ctx, einheiten ? "x ≈ 4,85" : "x ≈ 48.500 €", px(x) + 8, r.y1 - 14, { ausrichtung: "left", farbe: p, fett: true, groesse: 14 });
+  }
+
+  // Ablese-Linie
+  const S = steuerGenau(xc), cx = px(xc), cy = py(S), dunkel = "#1b2430";
+  if (xc <= ansicht.xmax * 1.0001) {
+    linie(ctx, [[cx, r.y1], [cx, Math.max(r.y0, Math.min(cy, r.y1))]], dunkel, 2);
+    if (S <= ansicht.ymax) {
+      linie(ctx, [[r.x0, cy], [cx, cy]], dunkel, 1.5, [6, 5]);
+      // Unterschied zu "42 % auf alles"
+      if (zeige.alles && zeige.differenz && 0.42 * xc > S + 1) {
+        const ya = py(Math.min(0.42 * xc, ansicht.ymax)), a = css("--alles");
+        const rechts = cx < r.x1 - 190, dx = rechts ? 14 : -14;
+        if (0.42 * xc <= ansicht.ymax) kreis(ctx, cx, ya, 6, a);
+        pfeil(ctx, cx + dx, (cy + ya) / 2, cx + dx, ya + 2, a, 2, 9);
+        pfeil(ctx, cx + dx, (cy + ya) / 2, cx + dx, cy - 2, a, 2, 9);
+        beschriftung(ctx, "Unterschied: " + euro(Math.floor(0.42 * xc) - steuer(xc)), cx + dx * 1.5, (cy + ya) / 2,
+                     { ausrichtung: rechts ? "left" : "right", farbe: a, fett: true, groesse: 14 });
+        if (0.42 * xc <= ansicht.ymax)
+          beschriftung(ctx, "42 % von allem: " + euro(Math.floor(0.42 * xc)), cx + dx * 1.5, ya - 4,
+                       { ausrichtung: rechts ? "left" : "right", farbe: a, fett: true, groesse: 14 });
+      }
+      kreis(ctx, cx, cy, 8, css("--tarif"));
+      marke(ctx, einheiten ? zahl(steuer(xc) / 1e3, 2) : euro(steuer(xc)), r.x0 - 4, cy, css("--tarif"), "right");
+      if (person && person.x === Math.round(xc))
+        beschriftung(ctx, person.name, cx - 12, cy - 20, { ausrichtung: "right", fett: true, groesse: 16, farbe: dunkel });
+    }
+    marke(ctx, einheiten ? zahl(Math.floor(xc) / 1e4, 2) : euro(Math.floor(xc)), cx, r.y1 + fs(14) * 0.95, dunkel);
+  }
+
+  // Legende
+  const leg = [["Tarif aus dem Gesetz", css("--tarif"), []]];
+  if (zeige.gerade) leg.push(["Gerade b): S = 0,42x − 11.136", css("--gerade"), [10, 6]]);
+  if (zeige.alles) leg.push(["„42 % auf alles“: 0,42·x", css("--alles"), [10, 6]]);
+  if (zeige.parabel) leg.push(["Parabel e): f(x) = 0,175x² + 1,75x − 2,6", css("--parabel"), [10, 6]]);
+  if (zeige.zehn) leg.push([einheiten ? "f(x) = 10, also 10.000 € Steuer" : "10.000 € Steuer", css("--zehn"), [4, 4]]);
+  ctx.save(); ctx.font = `${fs(14)}px ${css("--schrift")}`;
+  const lh = fs(14) * 1.45, lw = Math.max(...leg.map(l => ctx.measureText(l[0]).width)) + 48;
+  const lx = r.x0 + 10, ly = r.y0 + fs(13) * 2.2;
+  ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.strokeStyle = "#d5dbe3";
+  ctx.beginPath(); ctx.roundRect(lx, ly, lw, lh * leg.length + 8, 6); ctx.fill(); ctx.stroke();
+  leg.forEach(([t, f, d], i) => {
+    const y = ly + 4 + lh * (i + 0.5);
+    linie(ctx, [[lx + 8, y], [lx + 36, y]], f, i ? 2.5 : 4, d);
+    ctx.fillStyle = "#1b2430"; ctx.textBaseline = "middle"; ctx.fillText(t, lx + 42, y);
+  });
+  ctx.restore();
+}
+
+/* ---------- Prozent-Diagramm ---------- */
+function zeichneGraph() {
+  const { ctx, b, h } = GR; ctx.clearRect(0, 0, b, h);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, b, h);
+  const tx = teilung(0, ansicht.xmax / fx(), 6), yt = [0, 10, 20, 30, 40, 50];
+  const r = rahmen(GR, ctx, yt.map(t => t + " %"), fs(14) * 1.4);
+  r.py = p => r.y1 - p / 50 * (r.y1 - r.y0);
+  const { px, py } = r;
+  ctx.strokeStyle = "#e3e7ec"; ctx.lineWidth = 1;
+  for (const t of tx.t) { const p = px(t * fx()); ctx.beginPath(); ctx.moveTo(p, r.y0); ctx.lineTo(p, r.y1); ctx.stroke(); }
+  for (const t of yt) { ctx.beginPath(); ctx.moveTo(r.x0, py(t)); ctx.lineTo(r.x1, py(t)); ctx.stroke(); }
+  linie(ctx, [[r.x0, py(42)], [r.x1, py(42)]], "#9aa7b6", 1, [3, 4]);
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0); ctx.clip();
+  const N = 500, a = [], g = [];
+  for (let i = 0; i <= N; i++) { const x = ansicht.xmax * i / N;
+    a.push([px(x), py(x > 0 ? 100 * steuerGenau(x) / x : 0)]); g.push([px(x), py(100 * grenz(x))]); }
+  linie(ctx, g, css("--grenz"), 3); linie(ctx, a, css("--tarif"), 3);
+  ctx.restore();
+  ctx.save(); ctx.strokeStyle = "#1b2430"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(r.x0, r.y0 - 4); ctx.lineTo(r.x0, r.y1); ctx.lineTo(r.x1 + 4, r.y1); ctx.stroke();
+  ctx.fillStyle = "#1b2430"; ctx.font = `${fs(13)}px ${css("--schrift")}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  tx.t.forEach(t => ctx.fillText(zahl(t, tx.stellen), px(t * fx()), r.y1 + 5));
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  yt.forEach(t => ctx.fillText(t + " %", r.x0 - 7, py(t)));
+  ctx.restore();
+  beschriftung(ctx, einheiten ? "x in 10.000 €" : "Einkommen x in €", r.x1, r.y1 + fs(13) * 2.55,
+               { ausrichtung: "right", groesse: 13, fett: true });
+  // Ablese-Linie
+  if (xc <= ansicht.xmax * 1.0001) {
+    const cx = px(xc), d = xc > 0 ? 100 * steuer(xc) / Math.floor(xc) : 0, gs = 100 * grenz(xc);
+    linie(ctx, [[cx, r.y0], [cx, r.y1]], "#1b2430", 1.5);
+    kreis(ctx, cx, py(gs), 6.5, css("--grenz")); kreis(ctx, cx, py(d), 6.5, css("--tarif"));
+    const rechts = cx < r.x1 - 120, dx = rechts ? 10 : -10, al = rechts ? "left" : "right";
+    const yg = py(gs) - 14, yd = Math.max(py(d) + 14, yg + fs(14) * 1.3);
+    beschriftung(ctx, "nächster Euro: " + zahl(gs, 1) + " %", cx + dx, yg, { ausrichtung: al, farbe: css("--grenz"), fett: true, groesse: 14 });
+    beschriftung(ctx, "Anteil: " + zahl(d, 1) + " %", cx + dx, yd, { ausrichtung: al, farbe: css("--tarif"), fett: true, groesse: 14 });
+  }
+}
+
+/* ---------- Messwerte und Formel ---------- */
+let alterSchluessel = "";
+function anzeigen() {
+  const x = Math.floor(xc), S = steuer(x), B = bereich(x);
+  const schluessel = [x, einheiten, zeige.parabel].join("|");
+  if (schluessel === alterSchluessel) return; alterSchluessel = schluessel;
+  const art = ["", "steuerfrei", "Parabel", "Parabel", "Gerade", "Gerade"][B];
+  let html = `<div>Einkommen: <b>${euro(x)}</b></div>
+    <div>Bereich: <b>${B}</b> (${art})</div>
+    <div>Steuer im Jahr: <b>${euro(S)}</b></div>
+    <div>Steuer im Monat: <b>≈ ${euro(Math.round(S / 12))}</b></div>
+    <div>Anteil am Einkommen: <b>${x > 0 ? zahl(100 * S / x, 1) : "0"} %</b></div>
+    <div>Vom nächsten Euro: <b>${zahl(100 * grenz(x), 1)} Cent</b></div>`;
+  if (einheiten) html += `<div>In Einheiten: <b>x = ${zahl(x / 1e4, 2)}</b>, Steuer <b>${zahl(S / 1e3, 2)}</b></div>`;
+  if (zeige.parabel) html += `<div class="parabel">Parabel: f(${zahl(x / 1e4, 2)}) = ${zahl(fPar(x / 1e4), 2)}</div>`;
+  $("messwerte").innerHTML = html;
+  const g = steuerGenau(x);
+  let f;
+  if (B === 1) f = `Bereich 1: <i>S</i> = 0 €, denn bis 12.348 € ist das Einkommen steuerfrei (Grundfreibetrag).`;
+  else if (B === 2) { const y = (x - GF) / 1e4;
+    f = `Bereich 2: <i>y</i> = (${zahl(x, 0)} − 12.348) : 10.000 = ${zahl(y, 4)};&nbsp; <i>S</i> = (914,51·<i>y</i> + 1.400)·<i>y</i> = ${zahl(g, 2)} € → <b>${euro(S)}</b>`; }
+  else if (B === 3) { const z = (x - G2) / 1e4;
+    f = `Bereich 3: <i>z</i> = (${zahl(x, 0)} − 17.799) : 10.000 = ${zahl(z, 4)};&nbsp; <i>S</i> = (173,10·<i>z</i> + 2.397)·<i>z</i> + 1.034,87 = ${zahl(g, 2)} € → <b>${euro(S)}</b>`; }
+  else if (B === 4) f = `Bereich 4: <i>S</i> = 0,42·${zahl(x, 0)} − 11.135,63 = ${zahl(g, 2)} € → <b>${euro(S)}</b>`;
+  else f = `Bereich 5: <i>S</i> = 0,45·${zahl(x, 0)} − 19.470,38 = ${zahl(g, 2)} € → <b>${euro(S)}</b>`;
+  $("formel").innerHTML = f + ` <span class="klein">(Das Gesetz rundet auf volle Euro ab.)</span>`;
+}
+
+/* ---------- Bedienelemente ---------- */
+const rX = regler($("regler"), { id: "x", name: "Ablese-Linie verschieben", min: 0, max: 120000, schritt: 100, wert: xc,
+  einheit: "€", stellen: 0, beiAenderung: v => { lauf.pause(); setzeX(v); } });
+const ein = $("einkommenEin");
+ein.addEventListener("input", () => {
+  const v = parseFloat(ein.value); if (!isFinite(v)) return;
+  lauf.pause(); setzeX(Math.max(0, Math.min(320000, v)), true);
+});
+
+function setzeX(v, zoomAnpassen = false) {
+  xc = v;
+  if (zoomAnpassen && xc > ZOOMS[zoomName].xmax)
+    zoom(["lupe", "std", "alles"].find(n => ZOOMS[n].xmax >= xc) || "alles", false);
+  syncEingaben();
+}
+function syncEingaben() {
+  if (rX.wert !== Math.round(xc)) rX.setzen(Math.round(xc));
+  if (document.activeElement !== ein && parseFloat(ein.value) !== Math.floor(xc)) ein.value = Math.floor(xc);
+}
+function zoom(n, xBegrenzen = true) {
+  zoomName = n; $("r_x").max = ZOOMS[n].xmax;
+  $("r_x").step = ZOOMS[n].xmax <= 20000 ? 10 : 100;
+  if (xBegrenzen && xc > ZOOMS[n].xmax) xc = Math.round(ZOOMS[n].xmax * 0.6);
+  for (const k in ZOOMS) $("z_" + k).classList.toggle("aktiv", k === n);
+  syncEingaben();
+}
+for (const k in ZOOMS) {
+  const bt = document.createElement("button"); bt.id = "z_" + k; bt.textContent = ZOOMS[k].name;
+  bt.onclick = () => zoom(k); $("zoomKnoepfe").appendChild(bt);
+}
+for (const p of PERSONEN) {
+  const bt = document.createElement("button"); bt.id = "p_" + p.id;
+  bt.textContent = `${p.name} (${p.teil}): ${zahl(p.x, 0)} €`;
+  bt.onclick = () => { lauf.pause(); person = p; zoom(p.zoom); setzeX(p.x); }; $("presets").appendChild(bt);
+}
+const UEBER = [
+  { id: "bereiche", name: "Bereiche 1 bis 5", an: ["bereiche"] },
+  { id: "gerade", name: "Gerade aus b)", an: ["gerade", "pq", "dreieck"] },
+  { id: "alles", name: "„42 % auf alles“ (g)", an: ["alles", "differenz"] },
+  { id: "abc", name: "Punkte A, B, C (e)", an: ["abc"] },
+  { id: "parabel", name: "Parabel aus e)", an: ["parabel", "abc"] },
+  { id: "zehn", name: "10.000 € Steuer (f)", an: ["zehn", "schnitt"] }
+];
+for (const u of UEBER) {
+  const bt = document.createElement("button"); bt.id = "u_" + u.id; bt.textContent = u.name;
+  bt.onclick = () => { const v = !zeige[u.an[0]]; u.an.forEach(k => zeige[k] = v); knoepfe(); };
+  $("ueberlagerungen").appendChild(bt);
+}
+function knoepfe() {
+  for (const u of UEBER) $("u_" + u.id).classList.toggle("aktiv", !!zeige[u.an[0]]);
+  $("btnEuro").classList.toggle("aktiv", !einheiten); $("btnEinheit").classList.toggle("aktiv", einheiten);
+  alterSchluessel = "";
+}
+function setzeEinheiten(v) { einheiten = v; knoepfe(); }
+$("btnEuro").onclick = () => setzeEinheiten(false);
+$("btnEinheit").onclick = () => setzeEinheiten(true);
+
+/* Ziehen der Ablese-Linie */
+let ziehen = false;
+const ausZeiger = e => { const r = $("szene").getBoundingClientRect();
+  return Math.max(0, Math.min(ansicht.xmax, rS.xv(e.clientX - r.left))); };
+$("szene").addEventListener("pointerdown", e => { if (!rS) return; ziehen = true; lauf.pause();
+  $("szene").setPointerCapture(e.pointerId); setzeX(Math.round(ausZeiger(e) / 10) * 10); });
+$("szene").addEventListener("pointermove", e => { if (ziehen) setzeX(Math.round(ausZeiger(e) / 10) * 10); });
+const loslassen = () => { ziehen = false; };
+$("szene").addEventListener("pointerup", loslassen); $("szene").addEventListener("pointercancel", loslassen);
+$("graph").addEventListener("pointerdown", e => { const r = $("graph").getBoundingClientRect();
+  const k = rahmen(GR, GR.ctx, ["50 %"], 0); lauf.pause();
+  setzeX(Math.round(Math.max(0, Math.min(ansicht.xmax, k.xv(e.clientX - r.left))) / 10) * 10); });
+
+/* ---------- Ablauf ---------- */
+const lauf = new Schleife({
+  dt: 0.02,
+  schritt: dt => {
+    xc = Math.min(ZOOMS[zoomName].xmax, xc + ZOOMS[zoomName].xmax / 14 * dt);
+    if (xc >= ZOOMS[zoomName].xmax) lauf.pause();
+  },
+  bild: () => {
+    const z = ZOOMS[zoomName];
+    for (const k of ["xmax", "ymax"]) {
+      ansicht[k] += (z[k] - ansicht[k]) * 0.18;
+      if (Math.abs(z[k] - ansicht[k]) < z[k] * 1e-4) ansicht[k] = z[k];
+    }
+    if (lauf.laeuft) syncEingaben();
+    zeichneSzene(); zeichneGraph(); anzeigen();
+  }
+});
+function reset() {
+  lauf.pause(); hilfenAus(); person = null; setzeEinheiten(false); zoom("std"); setzeX(40000);
+  if (sm.aktiv) { sm.aus(); $("btnSchrittmodus").textContent = "Aufgabe Schritt für Schritt"; }
+}
+function einzel() { lauf.pause(); setzeX(Math.min(ZOOMS[zoomName].xmax, Math.floor(xc) + 500)); }
+bedienungEinrichten(lauf, { reset, einzel });
+lauf.beiStatus = an => {
+  $("btnStart").textContent = an ? "❚❚ Pause" : "▶ Einkommen durchlaufen";
+  if (an) { person = null; if (xc >= ZOOMS[zoomName].xmax - 1) xc = 0; }
+};
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowLeft") { e.preventDefault(); lauf.pause(); setzeX(Math.max(0, Math.ceil(xc) - 500)); }
+});
+$("btnPNG").onclick = () => alsPNG("lohnsteuer_diagramm.png", [$("szene"), $("graph")]);
+
+/* ---------- Schritt für Schritt ---------- */
+function setze({ z = "std", x = 40000, p = null, e = false, an = [] }) {
+  lauf.pause(); hilfenAus(); an.forEach(k => zeige[k] = true);
+  person = p ? PERSONEN.find(q => q.id === p) : null;
+  zoom(z); setzeX(x); setzeEinheiten(e);
+}
+const L = (inhalt, an = "") => `<details data-zeige="${an}"><summary>Lösung zeigen</summary><div class="loesung">${inhalt}</div></details>`;
+const SCHRITTE = [
+  { text: `<b>Überblick.</b> Der Graph zeigt, wie viel Einkommensteuer man in einem Jahr zahlt.
+      Ziehe die senkrechte Linie: Unten liest du das Einkommen ab, links die Steuer.
+      Die farbigen Streifen sind die fünf Bereiche aus dem Gesetz. In jedem Bereich gilt eine eigene Formel
+      (sie steht unter dem Diagramm).`,
+    vorbereiten: () => setze({ x: 40000 }) },
+  { text: `<b>a) Mia</b> verdient 11.000 € im Jahr. Lies ab, wie viel Steuer sie zahlt, und begründe.
+      <br><span class="hilf">Tipp:</span> Die Lupe zeigt den Anfang des Graphen. Wo verläuft er bei 11.000 €?` +
+      L(`Mia zahlt <b>0 €</b>. Bis 12.348 € liegt der Graph auf der x-Achse (Bereich 1).
+         Dieser Teil des Einkommens ist steuerfrei: der <b>Grundfreibetrag</b>.`),
+    vorbereiten: () => setze({ z: "lupe", x: 11000, p: "mia" }) },
+  { text: `<b>b) (1)</b> Die Punkte <span class="gerade">P(90.000 | 26.664)</span> und <span class="gerade">Q(100.000 | 30.864)</span>
+      kommen aus der Steuertabelle. Prüfe mit der Ablese-Linie, dass sie auf dem Graphen liegen.
+      Bestimme dann die Gerade <i>S</i>(<i>x</i>) = <i>m</i>·<i>x</i> + <i>n</i>.
+      <br><span class="hilf">Tipp:</span> <i>m</i> = Höhenunterschied : Breitenunterschied. Dann einen Punkt einsetzen.` +
+      L(`<i>m</i> = (30.864 − 26.664) : (100.000 − 90.000) = 4.200 : 10.000 = <b>0,42</b><br>
+         26.664 = 0,42·90.000 + <i>n</i> = 37.800 + <i>n</i> &nbsp;⇒&nbsp; <i>n</i> = <b>−11.136</b><br>
+         <b><i>S</i>(<i>x</i>) = 0,42<i>x</i> − 11.136</b> (grüne Linie). Im Gesetz steht 0,42<i>x</i> − 11.135,63.`, "gerade dreieck"),
+    vorbereiten: () => setze({ x: 90000, an: ["pq"] }) },
+  { text: `<b>b) (2)</b> Was bedeutet die Steigung <i>m</i> = 0,42?
+      <br><span class="hilf">Tipp:</span> Drücke zweimal <b>+500 €</b> (oder <kbd>→</kbd>). Um wie viel wächst die Steuer bei 1.000 € mehr?` +
+      L(`Bei 1.000 € mehr steigt die Steuer um 420 €. Von <b>jedem zusätzlich verdienten Euro</b> gehen
+         <b>42 Cent</b> ans Finanzamt (Spitzensteuersatz 42 %). Das zeigt auch die braune Linie im Prozent-Diagramm.`),
+    vorbereiten: () => setze({ x: 90000, an: ["pq", "gerade", "dreieck"] }) },
+  { text: `<b>c) Herr Becker</b> verdient 80.000 €. Berechne seine Steuer mit der Geraden aus b) und gib an,
+      wie viel Prozent seines Einkommens das sind. Vergleiche mit dem abgelesenen Wert.` +
+      L(`<i>S</i>(80.000) = 0,42·80.000 − 11.136 = 33.600 − 11.136 = <b>22.464 €</b><br>
+         Anteil: 22.464 : 80.000 = 0,2808 ≈ <b>28,1 %</b> (im Monat etwa 1.872 €).`),
+    vorbereiten: () => setze({ x: 80000, p: "becker", an: ["gerade"] }) },
+  { text: `<b>d) Ole</b> verdient 15.348 € (Bereich 2). Berechne mit
+      <i>S</i> = (914,51·<i>y</i> + 1.400)·<i>y</i> und <i>y</i> = (<i>x</i> − 12.348) : 10.000 seine Steuer im Jahr und im Monat.
+      <br><span class="hilf">Tipp:</span> Erst <i>y</i> ausrechnen, dann in die Klammer einsetzen. Unter dem Diagramm rechnet das Programm mit.` +
+      L(`<i>y</i> = 3.000 : 10.000 = 0,3<br>
+         <i>S</i> = (914,51·0,3 + 1.400)·0,3 = (274,353 + 1.400)·0,3 = 502,31<br>
+         Ole zahlt <b>502 €</b> im Jahr (abgerundet), also etwa 502 : 12 ≈ <b>42 € im Monat</b>.`),
+    vorbereiten: () => setze({ z: "lupe", x: 15348, p: "ole" }) },
+  { text: `<b>e)</b> Im Bereich 3 rechnen wir in Einheiten: <i>x</i> in <b>10.000 €</b>, Steuer in <b>1.000 €</b>.
+      Die Punkte <span class="parabel">A(2 | 1,6), B(4 | 7,2), C(6 | 14,2)</span> liegen auf dem Graphen.
+      Bestimme <i>f</i>(<i>x</i>) = <i>a</i><i>x</i>² + <i>b</i><i>x</i> + <i>c</i>.
+      <br><span class="hilf">Fahrplan:</span> Einsetzen – Aufräumen (<i>c</i> fällt weg) – Lösen – Probe – Gleichung.` +
+      L(`(I) 4<i>a</i> + 2<i>b</i> + <i>c</i> = 1,6 &nbsp; (II) 16<i>a</i> + 4<i>b</i> + <i>c</i> = 7,2 &nbsp; (III) 36<i>a</i> + 6<i>b</i> + <i>c</i> = 14,2<br>
+         (II) − (I): 12<i>a</i> + 2<i>b</i> = 5,6 &nbsp; (III) − (II): 20<i>a</i> + 2<i>b</i> = 7<br>
+         Subtrahieren: 8<i>a</i> = 1,4 ⇒ <i>a</i> = 0,175; &nbsp; 2,1 + 2<i>b</i> = 5,6 ⇒ <i>b</i> = 1,75; &nbsp; 0,7 + 3,5 + <i>c</i> = 1,6 ⇒ <i>c</i> = −2,6<br>
+         <b><i>f</i>(<i>x</i>) = 0,175<i>x</i>² + 1,75<i>x</i> − 2,6</b> (lila Linie). Probe mit C: 6,3 + 10,5 − 2,6 = 14,2 ✓`, "parabel"),
+    vorbereiten: () => setze({ z: "ef", x: 40000, e: true, an: ["abc"] }) },
+  { text: `<b>f)</b> Ab welchem Einkommen zahlt man 10.000 € Steuer? Rechne mit der Parabel <i>f</i> aus e).
+      <br><span class="hilf">Tipp:</span> 10.000 € Steuer heißt <i>f</i>(<i>x</i>) = 10. Alles auf eine Seite bringen, durch 0,175 teilen, pq-Formel.
+      Am Ende wieder in Euro umrechnen.` +
+      L(`0,175<i>x</i>² + 1,75<i>x</i> − 2,6 = 10 &nbsp;|−10 &nbsp;⇒&nbsp; 0,175<i>x</i>² + 1,75<i>x</i> − 12,6 = 0 &nbsp;|:0,175<br>
+         <i>x</i>² + 10<i>x</i> − 72 = 0 &nbsp; (<i>p</i> = 10, <i>q</i> = −72)<br>
+         <i>x</i> = −5 ± √(25 + 72) = −5 ± √97 &nbsp;⇒&nbsp; <i>x</i><sub>1</sub> ≈ 4,85 &nbsp; (<i>x</i><sub>2</sub> ≈ −14,85 entfällt)<br>
+         4,85 · 10.000 € ⇒ ab etwa <b>48.500 €</b>. Kontrolle: Stelle die Ablese-Linie auf 48.500 €.
+         Nach dem Gesetz sind es genau ab etwa 48.420 €.`, "schnitt"),
+    vorbereiten: () => setze({ z: "ef", x: 30000, e: true, an: ["abc", "parabel", "zehn"] }) },
+  { text: `<b>g) Tom</b> verdient 80.000 € und sagt: „Ich zahle 42 % von 80.000 €.“ Die rote Linie zeigt „42 % auf alles“.
+      Erkläre, warum Tom sich irrt. Wie groß ist der Unterschied? Wo steckt diese Zahl in der Geraden aus b)?
+      <br><span class="hilf">Tipp:</span> Schau auch ins Prozent-Diagramm: Welche Linie zeigt 42 %?` +
+      L(`42 % von 80.000 € = 33.600 €. Tom zahlt aber nur <b>22.464 €</b>, also etwa 28 %.<br>
+         Die 42 % gelten nur für den <b>nächsten</b> Euro (Steigung). Die ersten 12.348 € sind steuerfrei,
+         in den Bereichen 2 und 3 steigt der Steuersatz erst langsam an.<br>
+         Unterschied: 33.600 − 22.464 = <b>11.136 €</b>. Das ist der Betrag von <i>n</i> = −11.136 aus b).
+         Ziehe die Linie im Bereich 4 hin und her: Der Unterschied bleibt immer gleich.`, "differenz gerade"),
+    vorbereiten: () => setze({ x: 80000, p: "tom", an: ["alles"] }) }
+];
+const sm = schrittmodus(SCHRITTE);
+$("btnSchrittmodus").onclick = () => {
+  if (sm.aktiv) { sm.aus(); $("btnSchrittmodus").textContent = "Aufgabe Schritt für Schritt"; }
+  else { sm.an(); $("btnSchrittmodus").textContent = "Schritt für Schritt beenden"; }
+};
+$("schrittText").addEventListener("toggle", e => {
+  const d = e.target; if (!d.open || !d.dataset || !d.dataset.zeige) return;
+  d.dataset.zeige.split(" ").filter(Boolean).forEach(k => zeige[k] = true); knoepfe();
+}, true);
+
+$("infoText").innerHTML = `
+  <p>Das Diagramm zeigt die <b>Einkommensteuer 2026</b> für eine alleinstehende Person (Steuerklasse I)
+  in Abhängigkeit vom zu versteuernden Einkommen, genau nach den Formeln aus § 32a des Einkommensteuergesetzes.
+  Solidaritätszuschlag und Kirchensteuer sind weggelassen.</p>
+  <ul>
+    <li>Bereich 1 (bis 12.348 €): keine Steuer (Grundfreibetrag).</li>
+    <li>Bereiche 2 und 3 (bis 17.799 € und bis 69.878 €): je ein <b>Parabelstück</b>. Der Steuersatz für den nächsten Euro steigt von 14 % auf 42 %.</li>
+    <li>Bereich 4 (bis 277.825 €): eine <b>Gerade</b> mit Steigung 0,42, Bereich 5: Gerade mit Steigung 0,45.</li>
+  </ul>
+  <p>Die Ablese-Linie zeigt zu jedem Einkommen die Steuer im Jahr und im Monat, den Anteil am Einkommen
+  und die Steuer auf den nächsten Euro. Unter dem Diagramm steht die Formel des Bereichs mit eingesetzten Zahlen.
+  Mit „Aufgabe Schritt für Schritt“ geht man die Teile a) bis g) durch; die Lösungen sind zugeklappt.</p>`;
+
+knoepfe(); zoom("std"); setzeX(40000);
+</script>
+</body>
+</html>
